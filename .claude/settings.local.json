@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx drizzle-kit push:*)",
+      "Bash(yes:*)",
+      "Bash(DATABASE_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' npx drizzle-kit push:*)",
+      "Bash(DATABASE_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' npx drizzle-kit:*)",
+      "Bash(node migrate.mjs:*)",
+      "Bash(POSTGRES_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' node:*)"
+    ]
+  }
+}

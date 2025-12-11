@@ -13,12 +13,17 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    
+    // 💡 The NECESSARY fix for the "non-relative paths" error:
+    "baseUrl": "./",
+
     "plugins": [
       {
         "name": "next"
       }
     ],
     "paths": {
+      // 💡 ONLY KEEP THE DEFAULT ALIAS:
       "@/*": ["./*"]
     }
   },
