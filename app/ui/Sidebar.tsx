@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutDashboard, BarChart3, Settings, User } from "lucide-react";
+import { LayoutDashboard, BarChart3, Settings, User,Users } from "lucide-react";
 
 // 1. The Data (Configuration)
 const routes = [
@@ -16,11 +16,18 @@ const routes = [
     color: "text-green-500", // Giving it a distinct color
   },
   {
+    label: "Customers", // <--- NEW ROUTE
+    icon: Users,        // Using plural 'Users' to differentiate from Invoices
+    href: "/customers",
+    color: "text-orange-500",
+  },
+  {
     label: "Analytics",
     icon: BarChart3,
     href: "/analytics",
     color: "text-violet-500",
   },
+  
   {
     label: "Settings",
     icon: Settings,

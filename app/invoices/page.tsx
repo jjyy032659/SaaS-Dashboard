@@ -1,44 +1,59 @@
 // app/invoices/page.tsx
-// app/invoices/page.tsx
-import { db } from "@/lib/db/db"; 
-import { revenue } from "@/lib/db/schema"; // TEMP: Using revenue table data
-import { Search } from 'lucide-react'; // Icon for search bar
+import { db } from "@/lib/db/db";
+import { revenue, type Revenue } from "@/lib/db/schema";
+import SearchComponent from '../ui/search';
+import { sql } from 'drizzle-orm';
 
-// Define the type to be used on this page (Invoices)
-type Invoice = {
-  id: string;
-  amount: number;
-  month: string;
-  createdAt: Date;
-};
+// Define the type for the data structure
+type Invoice = Revenue;
 
-
-// This component will eventually accept a search query as a prop
-export default async function InvoicesPage() {
-  let invoiceData: Invoice[] = [];
+// IMPORTANT: In Next.js 15+, searchParams is now a Promise!
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    query?: string;
+  }>;
+}) {
+  // 1. Await the searchParams Promise to get the actual query value
+  const params = await searchParams;// Await the searchParams Promise to get the actual query value
+  const query = params?.query || '';// Default to an empty string if no query is provided
+  
+  let invoiceData: Invoice[] = [];// Initialize an empty array to hold the invoice data
 
   try {
-    // Fetch data (Temporarily using revenue table as proxy for 'invoices' table)
-    invoiceData = await db.select().from(revenue).orderBy(revenue.month);
-  } catch (e) {
-    console.error("Failed to fetch invoice data:", e);
-  }
+    // 2. Build the base query
+    let dbQuery = db.select().from(revenue);// Build the base query// Select all records from the revenue table//
 
+    // 3. Apply filtering if there's a search query
+    if (query) {
+      const searchTerm = `%${query}%`;
+
+      dbQuery = dbQuery.where(
+        sql`
+          ${revenue.month} ILIKE ${searchTerm}
+          OR CAST(${revenue.amount} AS text) ILIKE ${searchTerm}
+        `
+      );
+    }
+
+    // 4. Apply ordering and execute
+    invoiceData = await dbQuery.orderBy(revenue.month);
+
+  } catch (e) {
+    console.error("Failed to fetch filtered invoice data:", e);
+  }
+  
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-6">Invoices Management</h1>
-
-      {/* Search Component Placeholder (Next Step) */}
-      <div className="relative mb-6">
-         <input
-            type="text"
-            placeholder="Search invoices..."
-            className="w-full p-2 border border-gray-300 rounded-lg pl-10"
-         />
-         <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+      
+      <div className="mb-6">
+        {/* The SearchComponent handles client-side search interactions */}
+        <SearchComponent placeholder="Search invoices by month or amount..." />
       </div>
 
-      {/* Invoices Table */}
+      {/* Invoices Table (Renders filtered data) */}
       <div className="bg-white p-4 rounded-xl shadow-md">
         <h2 className="text-xl font-semibold mb-4">Invoice List ({invoiceData.length} records)</h2>
         <table className="min-w-full divide-y divide-gray-200">
