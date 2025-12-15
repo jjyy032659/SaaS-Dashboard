@@ -1,82 +1,154 @@
 // app/page.tsx
+import { db } from '@/lib/db/db';
+import { foodLog, foods, usersProfile } from '@/lib/db/schema';
+import { auth } from '@clerk/nextjs/server';
+import { eq, count, sql, and, gte, lt } from 'drizzle-orm';
+import { Activity, Leaf, CookingPot, Target, AlertTriangle } from 'lucide-react';
 
-import { db } from "@/lib/db/db"; 
-import { revenue, type Revenue } from "@/lib/db/schema"; 
-import { RevenueChart } from "./components/RevenueChart"; 
-import AddRevenueForm from './ui/AddRevenueForm'; // Component for form
-import { addRevenueAction } from "../lib/actions"; // Import the Server Action
+// New: Import the Macro Aggregation Function
+import { fetchDailyMacroSummary } from '@/lib/analytics'; 
 
-// IMPORTANT: This component must be 'async' to fetch data from the server
+// New: Import the Visualization Component
+import { MacroGauge } from '@/app/components/MacroGauge'; 
+
+// --- SERVER-SIDE DATA FETCHING FUNCTIONS ---
+
+// Function to get the user's current goals (TDEE, Macros)
+async function getUserGoals(userId: string) {
+    const goals = await db.select()
+        .from(usersProfile)
+        .where(eq(usersProfile.userId, userId));
+    return goals[0];
+}
+
+// Function to get the count of food items in the user's library
+async function getTotalFoodItems(userId: string) {
+    const totalFoodsResult = await db.select({ count: count() })
+        .from(foods)
+        .where(eq(foods.userId, userId));
+    return totalFoodsResult[0]?.count || 0;
+}
+
+// --- DASHBOARD COMPONENT ---
+
 export default async function DashboardPage() {
-  
-  // Initialize revenueData to an empty array for robust error handling
-  let revenueData: Revenue[] = []; 
-  
-  try {
-    // 1. Fetch the data using Drizzle ORM syntax
-    revenueData = await db.select().from(revenue).orderBy(revenue.month);
-  } catch (e) {
-    // If the database connection fails, log the error and proceed with empty data.
-    console.error("Database connection failed. Check your Neon URL, driver setup, or firewalls.", e);
+  const { userId } = await auth();
+
+  if (!userId) {
+    return (
+      <div className="p-6">
+        <h1 className="text-3xl font-bold">Please log in to view your Nutrition Dashboard</h1>
+      </div>
+    );
   }
+
+  // Fetch all required data concurrently
+  const [userGoals, totalFoodItems, dailySummary] = await Promise.all([
+    getUserGoals(userId),
+    getTotalFoodItems(userId),
+    fetchDailyMacroSummary(userId) // Now fetches all macros
+  ]);
   
-  // 2. Calculate key metrics
-  const totalRevenue = revenueData.reduce((sum, item) => sum + item.amount, 0);
-  const totalRecords = revenueData.length;
+  if (!userGoals) {
+    return (
+        <div className="p-8 text-center bg-white rounded-xl shadow-lg mt-10">
+            <Target size={48} className="mx-auto mb-4 text-orange-500" />
+            <h2 className="text-2xl font-semibold">Goal Setting Required</h2>
+            <p className="text-gray-600 mt-2">Before tracking, please complete your profile and set your daily calorie and macro goals.</p>
+            {/* Future: Add a link or button to the settings page here */}
+        </div>
+    );
+  }
+
+  const CALORIE_BUDGET = userGoals.calorieGoal;
+  const remainingCalories = CALORIE_BUDGET - dailySummary.total_calories;
 
   return (
-    <div className="space-y-8 p-6">
-      <h1 className="text-3xl font-bold">Dashboard Overview</h1>
+    <div className="space-y-10 p-6">
+      <h1 className="text-4xl font-bold">Daily Nutrition Tracker</h1>
       
-      {/* --- Main Content Layout: Grid for KPIs, Form, and Chart --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* --- Section 1: Key Performance Indicators (KPIs) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         
-        {/* === COLUMN 1 & 2: KPIs, Raw Data, and Form === */}
-        <div className="lg:col-span-2 space-y-6">
-            
-            {/* KPI Cards Container */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* Card 1: Total Revenue (KPI) */}
-                <div className="p-6 border rounded-xl shadow-md bg-white">
-                  <h2 className="font-semibold text-lg mb-2 text-gray-500">Total Revenue</h2>
-                  <p className="text-3xl font-extrabold text-green-600">
-                    ${totalRevenue.toLocaleString()} 
-                  </p>
-                </div>
+        {/* KPI 1: Calories Consumed Today */}
+        <div className="p-6 border rounded-xl shadow-lg bg-white border-red-100">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-red-700">Consumed Today</h2>
+            <Activity className="text-red-500" size={24} />
+          </div>
+          <p className="text-4xl font-extrabold text-red-600">
+            {dailySummary.total_calories} <span className="text-xl font-normal text-red-500">kcal</span>
+          </p>
+        </div>
 
-                {/* Card 2: Total Records */}
-                <div className="p-6 border rounded-xl shadow-md bg-white">
-                  <h2 className="font-semibold text-lg mb-2 text-gray-500">Data Points</h2>
-                  <p className="text-3xl font-extrabold">{totalRecords}</p>
-                </div>
-
-                {/* Card 3: Raw Data List (for verification) */}
-                <div className="p-6 border rounded-xl shadow-md bg-white md:col-span-1">
-                  <h2 className="font-semibold text-lg mb-4">Raw Revenue Data</h2>
-                  
-                  <ul className="space-y-2 max-h-40 overflow-y-auto">
-                    {revenueData.map((item) => (
-                      <li key={item.id} className="text-sm font-medium flex justify-between">
-                        <span>{item.month}</span>
-                        <span className="text-blue-600 font-semibold">${item.amount.toLocaleString()}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-            </div>
-
-            {/* 🚀 Server Action Form */}
-            {/* The form is passed the Server Action function (addRevenueAction) as a prop */}
-            <AddRevenueForm addRevenueAction={addRevenueAction} />
-            
+        {/* KPI 2: Remaining Calorie Budget */}
+        <div className={`p-6 rounded-xl shadow-lg bg-white ${remainingCalories >= 0 ? 'border border-green-100' : 'border border-yellow-100'}`}>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-green-700">Remaining Budget</h2>
+            <Leaf className="text-green-500" size={24} />
+          </div>
+          <p className={`text-4xl font-extrabold ${remainingCalories >= 0 ? 'text-green-600' : 'text-yellow-600'}`}>
+            {remainingCalories} <span className="text-xl font-normal text-gray-500">kcal</span>
+          </p>
         </div>
         
-        {/* === COLUMN 3: Chart === */}
-        <div className="lg:col-span-1">
-            <RevenueChart data={revenueData} />
+        {/* KPI 3: Food Library Size */}
+        <div className="p-6 border rounded-xl shadow-lg bg-white border-blue-100">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-blue-700">Food Items</h2>
+            <CookingPot className="text-blue-500" size={24} />
+          </div>
+          <p className="text-4xl font-extrabold text-blue-600">
+            {totalFoodItems} <span className="text-xl font-normal text-gray-500">custom foods</span>
+          </p>
+        </div>
+
+        {/* KPI 4: Alert for Macro Goal */}
+        <div className="p-6 border rounded-xl shadow-lg bg-white border-orange-100">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-orange-700">Protein Goal</h2>
+            <AlertTriangle className="text-orange-500" size={24} />
+          </div>
+          <p className="text-4xl font-extrabold text-orange-600">
+            {userGoals.macroProteinG - dailySummary.total_protein} <span className="text-xl font-normal text-gray-500">g left</span>
+          </p>
         </div>
       </div>
+      
+      {/* --- Section 2: Macro Progress Gauges --- */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        <MacroGauge 
+            label="Calories" 
+            total={dailySummary.total_calories} 
+            goal={userGoals.calorieGoal} 
+            color="#EF4444" // Red
+            unit=" kcal" 
+        />
+        <MacroGauge 
+            label="Protein" 
+            total={dailySummary.total_protein} 
+            goal={userGoals.macroProteinG} 
+            color="#10B981" // Green
+            unit=" g" 
+        />
+        <MacroGauge 
+            label="Carbohydrates" 
+            total={dailySummary.total_carbs} 
+            goal={userGoals.macroCarbsG} 
+            color="#3B82F6" // Blue
+            unit=" g" 
+        />
+        <MacroGauge 
+            label="Fats" 
+            total={dailySummary.total_fat} 
+            goal={userGoals.macroFatG} 
+            color="#F59E0B" // Amber
+            unit=" g" 
+        />
+        
+      </div>
+
     </div>
   );
 }

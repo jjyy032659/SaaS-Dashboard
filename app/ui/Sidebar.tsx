@@ -1,7 +1,14 @@
 import Link from "next/link";
-import { LayoutDashboard, BarChart3, Settings, User,Users } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  BarChart3, 
+  Settings, 
+  UtensilsCrossed, // <-- NEW: Log Meal Icon
+  BookOpenCheck,  // <-- NEW: Food Library Icon
+  Target          // <-- Used for the new Goal Setting/Settings page
+} from "lucide-react";
 
-// 1. The Data (Configuration)
+// 1. The Data (Configuration) - UPDATED FOR NUTRITION APP
 const routes = [
   {
     label: "Dashboard",
@@ -10,15 +17,15 @@ const routes = [
     color: "text-sky-500",
   },
   {
-    label: "Invoices", // <--- ADDED INVOICES LINK
-    icon: User, // Using the User icon for client/invoicing
-    href: "/invoices", // Points to the page you created
-    color: "text-green-500", // Giving it a distinct color
+    label: "Log Meal", // <-- NEW: Meal Logging
+    icon: UtensilsCrossed, 
+    href: "/log-meal", 
+    color: "text-green-500", 
   },
   {
-    label: "Customers", // <--- NEW ROUTE
-    icon: Users,        // Using plural 'Users' to differentiate from Invoices
-    href: "/customers",
+    label: "Food Library", // <-- NEW: Custom Food Items
+    icon: BookOpenCheck,        
+    href: "/food-library",
     color: "text-orange-500",
   },
   {
@@ -30,7 +37,7 @@ const routes = [
   
   {
     label: "Settings",
-    icon: Settings,
+    icon: Target, // Using Target to imply Goal Setting
     href: "/settings",
     color: "text-pink-700",
   },
@@ -41,11 +48,10 @@ export default function Sidebar() {
     <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white w-64">
       <div className="px-3 py-2 flex-1">
         <Link href="/" className="flex items-center pl-3 mb-14">
-          <h1 className="text-2xl font-bold">SaaS App</h1>
+          <h1 className="text-2xl font-bold">Nutrition Tracker</h1> {/* Updated App Name */}
         </Link>
         
         <div className="space-y-1">
-          {/* YOUR TASK: Map over the 'routes' array here */}
           {routes.map((route) => (
             <Link
               key={route.href} 
@@ -54,10 +60,10 @@ export default function Sidebar() {
             >
               <div className="flex items-center flex-1">
                {/* 1. The Icon (Self-closing tag with styling) */}
-    <route.icon className={`h-5 w-5 mr-3 ${route.color}`} />
-    
-    {/* 2. The Label (Next to the icon) */}
-    {route.label}
+                <route.icon className={`h-5 w-5 mr-3 ${route.color}`} />
+                
+                {/* 2. The Label (Next to the icon) */}
+                {route.label}
               </div>
             </Link>
           ))}

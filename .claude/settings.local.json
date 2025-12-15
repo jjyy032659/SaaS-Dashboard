@@ -6,7 +6,20 @@
       "Bash(DATABASE_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' npx drizzle-kit push:*)",
       "Bash(DATABASE_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' npx drizzle-kit:*)",
       "Bash(node migrate.mjs:*)",
-      "Bash(POSTGRES_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' node:*)"
+      "Bash(POSTGRES_URL='postgresql://neondb_owner:npg_ZGq83vWHiEjR@ep-icy-wind-a7o8rval-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' node:*)",
+      "Bash(node push-schema.js)",
+      "Bash(node push-schema2.js:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(killall node:*)",
+      "Bash(kill:*)",
+      "Bash(taskkill:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(npx drizzle-kit studio)",
+      "Bash(node drop-old-tables.mjs:*)",
+      "Bash(node ensure-user-profile.mjs:*)"
     ]
   }
 }
