@@ -1,10 +1,11 @@
 // app/food-library/page.tsx
 import { db } from "@/lib/db/db";
 import { foods } from "@/lib/db/schema";
-import { addFoodAction, deleteFoodAction } from "@/lib/actions";
-import { Trash2, PlusCircle } from "lucide-react";
+import { deleteFoodAction } from "@/lib/actions";
+import { Trash2 } from "lucide-react";
 import { eq, count, desc } from 'drizzle-orm';
 import { auth } from '@clerk/nextjs/server';
+import FoodLibraryFormClient from './FoodLibraryFormClient';
 
 // Note: We are keeping the searchParams structure for future filtering/pagination
 export default async function FoodLibraryPage({
@@ -27,10 +28,6 @@ export default async function FoodLibraryPage({
     .where(eq(foods.userId, userId))
     .orderBy(desc(foods.createdAt));
 
-  console.log('User ID:', userId);
-  console.log('Number of foods fetched:', allFoods.length);
-  console.log('Foods:', allFoods);
-
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex justify-between items-end mb-8">
@@ -40,24 +37,8 @@ export default async function FoodLibraryPage({
         </div>
       </div>
 
-      {/* --- ADD NEW FOOD FORM (Adapted from Add Customer) --- */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm mb-6">
-        <h3 className="text-xl font-semibold mb-4">Add New Food Item (per 100g)</h3>
-        <form action={addFoodAction} className="grid grid-cols-6 gap-3">
-          
-          <input name="name" placeholder="Food Name (e.g., Apple)" className="border p-2 rounded-md col-span-2" required />
-          <input name="calories" type="number" placeholder="Calories (kcal)" className="border p-2 rounded-md" required min="0" />
-          
-          {/* Macro Inputs */}
-          <input name="protein_g" type="number" step="0.1" placeholder="Protein (g)" className="border p-2 rounded-md" min="0" />
-          <input name="carbs_g" type="number" step="0.1" placeholder="Carbs (g)" className="border p-2 rounded-md" min="0" />
-          <input name="fat_g" type="number" step="0.1" placeholder="Fat (g)" className="border p-2 rounded-md" min="0" />
-          
-          <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-md flex items-center justify-center gap-1 col-span-6 mt-2">
-            <PlusCircle size={18} /> Add Food
-          </button>
-        </form>
-      </div>
+      {/* --- ADD NEW FOOD FORM --- */}
+      <FoodLibraryFormClient />
 
       {/* --- FOOD ITEMS TABLE --- */}
       <div className="bg-white shadow-sm rounded-xl border overflow-hidden">

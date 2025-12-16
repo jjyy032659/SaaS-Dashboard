@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db/db";
 import { foodLog, usersProfile, foods, Food } from "@/lib/db/schema";
-import { logMealAction } from "@/lib/actions";
+
 
 import { auth } from "@clerk/nextjs/server";
 import { eq, desc } from "drizzle-orm";
@@ -11,7 +11,7 @@ import { User, LogIn, Utensils } from "lucide-react";
 // Import the new Client Component
 import MealLoggingFormClient from './MealLoggingFormClient';
 
-
+import { logMealAction, deleteMealAction } from "@/lib/actions"; // assuming you updated this import
 // =========================================================================
 // DATA FETCHING FUNCTIONS (Server-side)
 // =========================================================================
@@ -31,6 +31,7 @@ async function getUserGoals(userId: string) {
  */
 async function getRecentFoodLog(userId: string) {
     return db.select({
+            id: foodLog.id, // <-- NEW: Include the unique ID
             description: foodLog.description,
             calories: foodLog.calories,
             proteinG: foodLog.proteinG,
@@ -107,6 +108,7 @@ export default async function LogMealPage() {
                 foodLibrary={foodLibrary} 
                 logMealAction={logMealAction} 
                 recentLog={recentLog} 
+                deleteMealAction={deleteMealAction} // <-- NEW PROP
             />
         </div>
     );

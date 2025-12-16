@@ -3,11 +3,49 @@
 'use server';
 
 import { db } from './db/db';
-import { foodLog, usersProfile, foods, Document } from './db/schema'; // Ensure all tables are imported
+import { foodLog, usersProfile, foods, documents as documentsTable, Document } from './db/schema';
 import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
-import { InsertFoodLog, InsertUserProfile, InsertFood } from './db/schema'; // Ensure all types are imported
+import { InsertFoodLog, InsertUserProfile, InsertFood } from './db/schema';
+
+
+// lib/actions.tsx (Add this function)
+
+// ... other imports ...
+
+/**
+ * Checks if the current authenticated user has an existing profile/goals in the database.
+ * Used for onboarding/redirection logic.
+ */
+export async function getGoalStatus(): Promise<{ hasProfile: boolean }> {
+    const { userId } = await auth();
+
+    if (!userId) {
+        return { hasProfile: true }; // Assume true if signed out; redirection is handled by Clerk/Next.js
+    }
+
+    try {
+        const profile = await db.select({ userId: usersProfile.userId })
+            .from(usersProfile)
+            .where(eq(usersProfile.userId, userId))
+            .limit(1);
+
+        return { hasProfile: profile.length > 0 };
+
+    } catch (e) {
+        console.error("Database error checking profile status:", e);
+        return { hasProfile: false };
+    }
+}
+// Define the expected return type for form actions (Used by useActionState)
+interface FormState {
+  message: string;
+  success: boolean;
+}
+
+// FIX: Define the MealType union type based on the schema's pgEnum
+type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'SUPPLEMENT';
 
 // =========================================================================
 // 1. HELPER FUNCTION: Get Current User ID
@@ -16,7 +54,6 @@ import { InsertFoodLog, InsertUserProfile, InsertFood } from './db/schema'; // E
 async function getCurrentUserId(): Promise<string> {
     const { userId } = await auth();
     if (!userId) {
-        // In a real app, you would redirect the user to sign-in
         throw new Error("Authorization error: User ID not found.");
     }
     return userId;
@@ -26,13 +63,9 @@ async function getCurrentUserId(): Promise<string> {
 // 2. USER PROFILE ACTIONS (Goal Setting)
 // =========================================================================
 
-/**
- * Creates or Updates the user's profile with their biometrics and goals.
- */
-export async function updateProfileAndGoalsAction(formData: FormData) {
+export async function updateProfileAndGoalsAction(prevState: FormState, formData: FormData): Promise<FormState> {
     const userId = await getCurrentUserId();
     
-    // Parse form data into numbers
     const heightCm = parseInt(formData.get('heightCm') as string);
     const currentWeightKg = parseInt(formData.get('currentWeightKg') as string);
     const age = parseInt(formData.get('age') as string);
@@ -42,12 +75,10 @@ export async function updateProfileAndGoalsAction(formData: FormData) {
     const macroFatG = parseInt(formData.get('macroFatG') as string);
     const macroCarbsG = parseInt(formData.get('macroCarbsG') as string);
 
-    // Basic validation (Zod is recommended for production)
     if (isNaN(calorieGoal) || isNaN(macroProteinG) || isNaN(heightCm)) {
         return { success: false, message: "Invalid numeric input." };
     }
     
-    // Data structure for insertion/update
     const profileData: InsertUserProfile = {
         userId,
         age,
@@ -64,7 +95,7 @@ export async function updateProfileAndGoalsAction(formData: FormData) {
         await db.insert(usersProfile)
             .values(profileData)
             .onConflictDoUpdate({ 
-                target: usersProfile.userId, // Update if userId exists
+                target: usersProfile.userId,
                 set: profileData
             });
 
@@ -83,27 +114,26 @@ export async function updateProfileAndGoalsAction(formData: FormData) {
 
 /**
  * Logs a new food item into the user's daily record.
+ * CORRECTED SIGNATURE: Accepts prevState and formData
  */
-export async function logMealAction(formData: FormData) {
+export async function logMealAction(prevState: FormState, formData: FormData): Promise<FormState> {
     const userId = await getCurrentUserId();
     
-    // Parse and validate form data (Note: Zod validation is ideal here)
-    const mealType = formData.get('mealType') as string; 
+    // FIX APPLIED: Asserting the type to the MealType union
+    const mealType = formData.get('mealType') as MealType; 
     const description = formData.get('description') as string;
-    // Values are now sent as strings from the client component (calculated or manual)
     const calories = parseInt(formData.get('calories') as string);
     const proteinG = parseInt(formData.get('proteinG') as string);
     const fatG = parseInt(formData.get('fatG') as string);
     const carbsG = parseInt(formData.get('carbsG') as string);
     
-    // If the description or calories are missing, reject the submission
     if (isNaN(calories) || !description) {
         return { success: false, message: "Invalid meal details (Calories or Description missing)." };
     }
 
     const newLogEntry: InsertFoodLog = {
         userId,
-        mealType,
+        mealType, // This is now correctly typed
         description,
         calories,
         proteinG,
@@ -147,10 +177,7 @@ export async function deleteMealAction(logId: string) {
 // 4. FOOD LIBRARY ACTIONS (Custom Food Items)
 // =========================================================================
 
-/**
- * Adds a new custom food item to the user's food library.
- */
-export async function addFoodAction(formData: FormData) {
+export async function addFoodAction(prevState: FormState, formData: FormData): Promise<FormState> {
     const userId = await getCurrentUserId();
 
     const name = formData.get('name') as string;
@@ -205,24 +232,18 @@ export async function deleteFoodAction(foodId: string) {
 // 5. DOCUMENT ANALYSIS ACTIONS (Kept for AI feature)
 // =========================================================================
 
-/**
- * Simulates uploading a file (metadata only) and triggering analysis.
- */
 export async function uploadDocumentAction(formData: FormData) {
     const userId = await getCurrentUserId();
     
-    // Get the file stream from FormData
     const file = formData.get('file') as File;
     if (!file || file.size === 0) {
         return { success: false, message: "No file selected." };
     }
     
-    // --- (Simulation) ---
     const s3Key = `${userId}/${Date.now()}-${file.name}`;
     
     try {
-        // Save metadata to PostgreSQL
-        await db.insert(documents).values({
+        await db.insert(documentsTable).values({
             userId: userId,
             fileName: file.name,
             s3Key: s3Key,

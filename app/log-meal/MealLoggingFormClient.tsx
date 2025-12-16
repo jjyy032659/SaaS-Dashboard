@@ -1,8 +1,9 @@
-// app/log-meal/MealLoggingFormClient.tsx
+// app/log-meal/MealLoggingFormClient.tsx (Updated)
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ListOrdered } from 'lucide-react';
+import { ListOrdered, Trash2 } from 'lucide-react';
+import { useFormStatus } from 'react-dom'; // Needed for the delete button's pending state
 
 // Define the type for the food data passed from the server
 interface FoodItem {
@@ -14,30 +15,59 @@ interface FoodItem {
     fat_g: number;
 }
 
-interface MealLoggingFormClientProps {
-    foodLibrary: FoodItem[];
-    logMealAction: (formData: FormData) => Promise<{ success: boolean; message: string; }>;
-    recentLog: any[]; 
+interface LogEntry {
+    id: string; // Now included from Step 1
+    description: string;
+    calories: number;
+    proteinG: number;
+    fatG: number;
+    carbsG: number;
 }
 
-export default function MealLoggingFormClient({ foodLibrary, logMealAction, recentLog }: MealLoggingFormClientProps) {
+interface FormState {
+  message: string;
+  success: boolean;
+}
+
+interface MealLoggingFormClientProps {
+    logMealAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
+    deleteMealAction: (logId: string) => Promise<void>; // <-- NEW PROP
+    foodLibrary: FoodItem[];
+    recentLog: LogEntry[]; // <-- Updated type for ID
+}
+
+// Button component for pending state on deletion
+function DeleteButton() {
+    const { pending } = useFormStatus();
+    return (
+        <button 
+            type="submit" 
+            disabled={pending} 
+            className="text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+        >
+            {pending ? '...' : <Trash2 size={16} />}
+        </button>
+    );
+}
+
+
+export default function MealLoggingFormClient({ foodLibrary, logMealAction, recentLog, deleteMealAction }: MealLoggingFormClientProps) {
     const [selectedFoodId, setSelectedFoodId] = useState('');
     const [servingSizeGrams, setServingSizeGrams] = useState(100); 
-    const [statusMessage, setStatusMessage] = useState({ success: false, message: '' });
+    const [statusMessage, setStatusMessage] = useState<FormState>({ success: false, message: '' });
 
-    // State for manual macro entry (FIX for React controlled/uncontrolled warning)
+    // State for manual macro entry
     const [manualCalories, setManualCalories] = useState(0);
     const [manualProteinG, setManualProteinG] = useState(0);
     const [manualFatG, setManualFatG] = useState(0);
     const [manualCarbsG, setManualCarbsG] = useState(0);
-
 
     // Find the currently selected food item from the library
     const selectedFood = useMemo(() => {
         return foodLibrary.find(food => food.id === selectedFoodId);
     }, [foodLibrary, selectedFoodId]);
 
-    // Calculate the total macros based on serving size (THE CORE LOGIC)
+    // Calculate the total macros based on serving size
     const calculatedMacros = useMemo(() => {
         if (!selectedFood || servingSizeGrams <= 0) {
             return { calories: 0, proteinG: 0, fatG: 0, carbsG: 0 };
@@ -53,9 +83,10 @@ export default function MealLoggingFormClient({ foodLibrary, logMealAction, rece
         };
     }, [selectedFood, servingSizeGrams]);
     
+    
     // Form submission handler to catch the result
     const handleSubmit = async (formData: FormData) => {
-        // Manually update FormData with calculated values if a library food is selected
+        // ... (Logic remains the same as previous step) ...
         if (selectedFood) {
             formData.set('calories', calculatedMacros.calories.toString());
             formData.set('proteinG', calculatedMacros.proteinG.toString());
@@ -63,14 +94,14 @@ export default function MealLoggingFormClient({ foodLibrary, logMealAction, rece
             formData.set('carbsG', calculatedMacros.carbsG.toString());
             formData.set('description', `${servingSizeGrams}g of ${selectedFood.name}`);
         } else {
-             // For manual entry, check if description is provided
              if (!formData.get('description')) {
                  setStatusMessage({ success: false, message: "Please provide a description for your manual entry." });
                  return;
              }
         }
+
+        const result = await logMealAction(statusMessage, formData);
         
-        const result = await logMealAction(formData);
         setStatusMessage(result);
         
         // Reset state after successful submission
@@ -86,11 +117,16 @@ export default function MealLoggingFormClient({ foodLibrary, logMealAction, rece
         setTimeout(() => setStatusMessage({ success: false, message: '' }), 5000);
     };
 
+    // Handler to delete a meal - binds the logId to the server action
+    const handleDelete = (logId: string) => {
+        return deleteMealAction.bind(null, logId);
+    };
+
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* 1. Meal Logging Form with Calculation */}
+            {/* 1. Meal Logging Form */}
             <div className="lg:col-span-2 bg-white p-6 rounded-xl border shadow-lg">
                 <h2 className="text-xl font-semibold mb-4">Log Food Entry</h2>
                 
@@ -174,15 +210,12 @@ export default function MealLoggingFormClient({ foodLibrary, logMealAction, rece
                              {selectedFood ? 'Calculated Macros (Read-Only)' : 'Manual Macro Entry'}
                         </label>
                         
-                        {/* INPUT: Description (REQUIRED FOR SUBMISSION) */}
-                        {/* Note: If selectedFood is true, the value is managed by the client component */}
+                        {/* INPUT: Description */}
                         <input 
                             name="description" 
                             placeholder={selectedFood ? `Auto-Generated: ${servingSizeGrams}g of ${selectedFood.name}` : "Manual description / Food name"}
                             required 
                             readOnly={!!selectedFood} 
-                            // Only use the `value` prop when selectedFood is FALSE (i.e., manual entry)
-                            value={selectedFood ? undefined : undefined} 
                             className={`border p-2 rounded-md w-full focus:ring-2 focus:ring-green-500 focus:border-green-500 ${selectedFood ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                         />
                         
@@ -256,16 +289,23 @@ export default function MealLoggingFormClient({ foodLibrary, logMealAction, rece
                 </form>
             </div>
 
-            {/* 2. Recent Log List (Remains the same) */}
+            {/* 2. Recent Log List */}
             <div className="lg:col-span-1">
                 <h2 className="text-xl font-semibold mb-3">Recently Logged Items</h2>
                 <ul className="bg-white p-4 rounded-xl border max-h-96 overflow-y-auto shadow-md">
-                    {recentLog.map((item: any, index: number) => (
-                        <li key={index} className="border-b last:border-b-0 py-2">
-                            <p className="font-medium text-gray-800">{item.description}</p>
-                            <p className="text-sm text-gray-500">
-                                {item.calories} kcal · {item.proteinG}g P · {item.carbsG}g C · {item.fatG}g F
-                            </p>
+                    {recentLog.map((item: LogEntry, index: number) => (
+                        <li key={item.id} className="border-b last:border-b-0 py-2 flex justify-between items-center">
+                            <div>
+                                <p className="font-medium text-gray-800">{item.description}</p>
+                                <p className="text-sm text-gray-500">
+                                    {item.calories} kcal · {item.proteinG}g P · {item.carbsG}g C · {item.fatG}g F
+                                </p>
+                            </div>
+                            
+                            {/* NEW: Delete Form for individual item */}
+                            <form action={handleDelete(item.id)}>
+                                <DeleteButton />
+                            </form>
                         </li>
                     ))}
                      {recentLog.length === 0 && (

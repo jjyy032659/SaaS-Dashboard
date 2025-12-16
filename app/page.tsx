@@ -7,7 +7,7 @@ import { Activity, Leaf, CookingPot, Target, AlertTriangle } from 'lucide-react'
 
 // New: Import the Macro Aggregation Function
 import { fetchDailyMacroSummary } from '@/lib/analytics'; 
-
+import Link from 'next/link';
 // New: Import the Visualization Component
 import { MacroGauge } from '@/app/components/MacroGauge'; 
 
@@ -51,12 +51,20 @@ export default async function DashboardPage() {
   
   if (!userGoals) {
     return (
-        <div className="p-8 text-center bg-white rounded-xl shadow-lg mt-10">
+      <div className="p-8 text-center bg-white rounded-xl shadow-lg mt-10">
             <Target size={48} className="mx-auto mb-4 text-orange-500" />
             <h2 className="text-2xl font-semibold">Goal Setting Required</h2>
-            <p className="text-gray-600 mt-2">Before tracking, please complete your profile and set your daily calorie and macro goals.</p>
-            {/* Future: Add a link or button to the settings page here */}
+            <p className="text-gray-600 mt-2 mb-6">Before tracking, please complete your profile and set your daily calorie and macro goals.</p>
+            
+            {/* NEW: Link Button to Settings Page */}
+            <Link 
+                href="/settings" 
+                className="inline-flex items-center justify-center bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+            >
+                Go to Settings
+            </Link>
         </div>
+        
     );
   }
 
