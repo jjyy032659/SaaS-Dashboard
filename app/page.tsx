@@ -1,12 +1,13 @@
-// app/page.tsx
+// app/page.tsx (COMPLETE CODE)
 import { db } from '@/lib/db/db';
-import { foodLog, foods, usersProfile } from '@/lib/db/schema';
+import { foodLog, foods, usersProfile, UserProfile } from '@/lib/db/schema';
 import { auth } from '@clerk/nextjs/server';
 import { eq, count, sql, and, gte, lt } from 'drizzle-orm';
-import { Activity, Leaf, CookingPot, Target, AlertTriangle } from 'lucide-react';
+import { Activity, Leaf, CookingPot, Target, AlertTriangle, Zap } from 'lucide-react'; // <-- ADD Zap icon
+import { analyzeGoalProgressAction } from '@/lib/actions'; // <-- NEW IMPORT
 
-// New: Import the Macro Aggregation Function
-import { fetchDailyMacroSummary } from '@/lib/analytics'; 
+// New: Import the Macro Aggregation Function and DailySummary type
+import { fetchDailyMacroSummary, DailyMacroData as DailySummary } from '@/lib/analytics'; 
 import Link from 'next/link';
 // New: Import the Visualization Component
 import { MacroGauge } from '@/app/components/MacroGauge'; 
@@ -56,7 +57,7 @@ export default async function DashboardPage() {
             <h2 className="text-2xl font-semibold">Goal Setting Required</h2>
             <p className="text-gray-600 mt-2 mb-6">Before tracking, please complete your profile and set your daily calorie and macro goals.</p>
             
-            {/* NEW: Link Button to Settings Page */}
+            {/* Link Button to Settings Page */}
             <Link 
                 href="/settings" 
                 className="inline-flex items-center justify-center bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
@@ -67,6 +68,12 @@ export default async function DashboardPage() {
         
     );
   }
+
+  // NEW: Fetch the AI analysis after user data is secured
+  const aiAnalysis = userGoals 
+    ? await analyzeGoalProgressAction(userGoals, dailySummary)
+    : null;
+
 
   const CALORIE_BUDGET = userGoals.calorieGoal;
   const remainingCalories = CALORIE_BUDGET - dailySummary.total_calories;
@@ -122,6 +129,19 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+      
+      {/* NEW: AI Analysis and Coaching Block */}
+      {aiAnalysis && (
+        <div className="bg-white p-6 rounded-xl border-2 border-blue-200 shadow-lg">
+            <h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-blue-800">
+                <Zap size={20} /> AI Goal Coach Report
+            </h2>
+            {/* The Gemini response is markdown, so we render it as text */}
+            <div className="text-sm leading-relaxed whitespace-pre-line text-gray-700">
+                {aiAnalysis}
+            </div>
+        </div>
+      )}
       
       {/* --- Section 2: Macro Progress Gauges --- */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

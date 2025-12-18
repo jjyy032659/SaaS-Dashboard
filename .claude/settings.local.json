@@ -19,7 +19,14 @@
       "Bash(findstr:*)",
       "Bash(npx drizzle-kit studio)",
       "Bash(node drop-old-tables.mjs:*)",
-      "Bash(node ensure-user-profile.mjs:*)"
+      "Bash(node ensure-user-profile.mjs:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node test-gemini.mjs:*)",
+      "Bash(netstat:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(git add:*)"
     ]
   }
 }

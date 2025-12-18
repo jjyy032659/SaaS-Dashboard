@@ -9,13 +9,14 @@ import {
   UserButton,
 } from '@clerk/nextjs';
 
-import Sidebar from './ui/Sidebar'; 
-import { Inter } from 'next/font/google'; 
+import Sidebar from './ui/Sidebar';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
 // NEW IMPORTS:
 import GoalChecker from './ui/GoalChecker'; // <-- NEW
 import { getGoalStatus } from '@/lib/actions'; // <-- NEW (The Server Action)
+import SubscriptionBadge from './ui/SubscriptionBadge'; // <-- Subscription badge
 
 // Define metadata (kept simple for this example)
 export const metadata = {
@@ -52,6 +53,7 @@ export default function RootLayout({
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
+                  <SubscriptionBadge />
                   <UserButton afterSignOutUrl="/" />
                 </SignedIn>
               </header>

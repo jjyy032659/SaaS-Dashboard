@@ -1,7 +1,7 @@
 // app/settings/page.tsx
 import { db } from "@/lib/db/db";
 import { usersProfile, UserProfile } from "@/lib/db/schema";
-import { updateProfileAndGoalsAction } from "@/lib/actions";
+import { updateProfileAndGoalsAction, generateGoalRecommendationsAction } from "@/lib/actions";
 
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
@@ -9,6 +9,7 @@ import { Target, LogIn } from "lucide-react";
 
 // Import the new Client Component
 import SettingsFormClient from './SettingsFormClient';
+import { getUserSubscriptionStatus } from "@/lib/stripe";
 
 // =========================================================================
 // DATA FETCHING FUNCTIONS (Server-side)
@@ -39,9 +40,12 @@ export default async function SettingsPage() {
         );
     }
 
-    // Fetch the current profile data
-    const profileData = await getCurrentUserProfile(userId);
-    
+    // Fetch the current profile data and subscription status
+    const [profileData, subscriptionStatus] = await Promise.all([
+        getCurrentUserProfile(userId),
+        getUserSubscriptionStatus(userId),
+    ]);
+
     // Default values if no profile exists yet
     // NOTE: These values are used to pre-fill the form inputs
     const defaults = {
@@ -65,10 +69,12 @@ export default async function SettingsPage() {
                 Set your biometrics and daily macro targets. This data powers your Dashboard analysis.
             </p>
 
-            {/* Pass data and the Server Action to the Client Component */}
-            <SettingsFormClient 
+            {/* Pass data and the Server Actions to the Client Component */}
+            <SettingsFormClient
                 updateProfileAndGoalsAction={updateProfileAndGoalsAction}
+                generateGoalRecommendationsAction={generateGoalRecommendationsAction}
                 defaults={defaults}
+                isPremium={subscriptionStatus.isPremium}
             />
             
         </div>

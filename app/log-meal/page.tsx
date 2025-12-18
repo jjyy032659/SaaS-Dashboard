@@ -1,17 +1,19 @@
-// app/log-meal/page.tsx
+// app/log-meal/page.tsx (COMPLETE CODE)
 
 import { db } from "@/lib/db/db";
 import { foodLog, usersProfile, foods, Food } from "@/lib/db/schema";
-
-
 import { auth } from "@clerk/nextjs/server";
 import { eq, desc } from "drizzle-orm";
 import { User, LogIn, Utensils } from "lucide-react";
 
-// Import the new Client Component
+// UPDATED IMPORTS:
 import MealLoggingFormClient from './MealLoggingFormClient';
+import AIMealLogClient from './AIMealLogClient';
+import RecentMealsClient from './RecentMealsClient'; // <-- NEW IMPORT
 
-import { logMealAction, deleteMealAction } from "@/lib/actions"; // assuming you updated this import
+// UPDATED ACTION IMPORTS:
+import { logMealAction, deleteMealAction, analyzeImageAction } from "@/lib/actions"; 
+
 // =========================================================================
 // DATA FETCHING FUNCTIONS (Server-side)
 // =========================================================================
@@ -31,8 +33,9 @@ async function getUserGoals(userId: string) {
  */
 async function getRecentFoodLog(userId: string) {
     return db.select({
-            id: foodLog.id, // <-- NEW: Include the unique ID
+            id: foodLog.id,
             description: foodLog.description,
+            mealType: foodLog.mealType, // Include meal type for display
             calories: foodLog.calories,
             proteinG: foodLog.proteinG,
             fatG: foodLog.fatG,
@@ -95,20 +98,51 @@ export default async function LogMealPage() {
     }
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                <Utensils size={30} /> Log a Meal
-            </h1>
-            <p className="text-gray-600 mb-8">
-                Your daily goal is **{userGoals.calorieGoal} kcal** and **{userGoals.macroProteinG}g protein**.
-            </p>
-            
-            {/* Render the Client Component with all necessary server data */}
-            <MealLoggingFormClient 
-                foodLibrary={foodLibrary} 
-                logMealAction={logMealAction} 
-                recentLog={recentLog} 
-                deleteMealAction={deleteMealAction} // <-- NEW PROP
+        <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border border-green-200">
+                <h1 className="text-3xl font-bold mb-3 flex items-center gap-3">
+                    <Utensils size={32} className="text-green-600" /> Log Your Meal
+                </h1>
+                <div className="flex flex-wrap gap-4 text-sm">
+                    <div className="bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <span className="text-gray-600">Daily Goal:</span>
+                        <strong className="text-green-600 ml-2">{userGoals.calorieGoal} kcal</strong>
+                    </div>
+                    <div className="bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <span className="text-gray-600">Protein:</span>
+                        <strong className="text-green-600 ml-2">{userGoals.macroProteinG}g</strong>
+                    </div>
+                    <div className="bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <span className="text-gray-600">Carbs:</span>
+                        <strong className="text-blue-600 ml-2">{userGoals.macroCarbsG}g</strong>
+                    </div>
+                    <div className="bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <span className="text-gray-600">Fat:</span>
+                        <strong className="text-amber-600 ml-2">{userGoals.macroFatG}g</strong>
+                    </div>
+                </div>
+            </div>
+
+            {/* Logging Methods - Side by Side on Desktop, Stacked on Mobile */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* AI Image Logging */}
+                <AIMealLogClient
+                    logMealAction={logMealAction}
+                    analyzeImageAction={analyzeImageAction}
+                />
+
+                {/* Manual/Library Logging */}
+                <MealLoggingFormClient
+                    foodLibrary={foodLibrary}
+                    logMealAction={logMealAction}
+                />
+            </div>
+
+            {/* Recent Meals - Full Width Below */}
+            <RecentMealsClient
+                recentLog={recentLog}
+                deleteMealAction={deleteMealAction}
             />
         </div>
     );

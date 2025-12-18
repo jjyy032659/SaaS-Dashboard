@@ -21,19 +21,26 @@ export const mealTypeEnum = pgEnum('meal_type', ['BREAKFAST', 'LUNCH', 'DINNER',
  */
 export const usersProfile = pgTable('users_profile', {
   // Primary Key linked directly to Clerk's user ID for RLS
-  userId: text('user_id').primaryKey(), 
-  
+  userId: text('user_id').primaryKey(),
+
   // Biometrics
   age: integer('age'),
   heightCm: integer('height_cm'),
   currentWeightKg: integer('current_weight_kg'),
-  activityLevel: text('activity_level'), 
-  
+  activityLevel: text('activity_level'),
+
   // Goals
   calorieGoal: integer('calorie_goal').notNull(), // Daily target (kcal)
   macroProteinG: integer('macro_protein_g').notNull(), // Protein target (grams)
   macroFatG: integer('macro_fat_g').notNull().default(0),
   macroCarbsG: integer('macro_carbs_g').notNull().default(0),
+
+  // Subscription fields (Stripe integration)
+  stripeCustomerId: text('stripe_customer_id'),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  stripePriceId: text('stripe_price_id'),
+  stripeCurrentPeriodEnd: timestamp('stripe_current_period_end'),
+  subscriptionStatus: text('subscription_status').default('free'), // 'free', 'active', 'canceled', 'past_due'
 
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
