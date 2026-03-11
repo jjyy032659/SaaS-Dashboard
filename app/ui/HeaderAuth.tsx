@@ -1,8 +1,22 @@
 'use client';
 
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useAuth } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 
 export default function HeaderAuth() {
+  const { isSignedIn } = useAuth();
+  const router = useRouter();
+  const prevSignedIn = useRef(isSignedIn);
+
+  useEffect(() => {
+    // When transitioning from signed-out to signed-in, refresh server components
+    if (isSignedIn && !prevSignedIn.current) {
+      router.refresh();
+    }
+    prevSignedIn.current = isSignedIn;
+  }, [isSignedIn, router]);
+
   return (
     <>
       <SignedOut>
