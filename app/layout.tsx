@@ -45,8 +45,8 @@ export default function RootLayout({
               
               <header className="flex justify-end items-center p-4 gap-4 h-16 border-b bg-white flex-none shadow-sm">
                 <SignedOut>
-                  <SignInButton mode="modal" />
-                  <SignUpButton mode="modal">
+                  <SignInButton mode="modal" fallbackRedirectUrl="/" />
+                  <SignUpButton mode="modal" fallbackRedirectUrl="/">
                     <button className="bg-blue-600 text-white rounded-md font-medium px-4 py-2 cursor-pointer">
                       Sign Up
                     </button>

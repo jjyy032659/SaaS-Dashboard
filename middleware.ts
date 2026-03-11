@@ -1,19 +1,17 @@
 // middleware.ts
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// 1. Define which routes are protected
-const isProtectedRoute = createRouteMatcher([
-  '/', 
-  '/invoices(.*)', 
-  '/customers(.*)',
-  '/analytics(.*)',
-  '/settings(.*)'
+// Public routes — everyone can access these without being logged in
+const isPublicRoute = createRouteMatcher([
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/pricing(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // 2. If the user is trying to access a protected route, 
-  //    ensure they are authenticated.
-  if (isProtectedRoute(req)) {
+  // Protect all routes except public ones.
+  // Unauthenticated users hitting any other route get redirected to sign-in.
+  if (!isPublicRoute(req)) {
     await auth.protect();
   }
 });
