@@ -1,13 +1,7 @@
 // app/layout.tsx (Updated)
 
-import {
-  ClerkProvider,
-  SignInButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from '@clerk/nextjs';
+import { ClerkProvider, SignedIn } from '@clerk/nextjs';
+import HeaderAuth from './ui/HeaderAuth';
 
 import Sidebar from './ui/Sidebar';
 import { Inter } from 'next/font/google';
@@ -43,24 +37,11 @@ export default function RootLayout({
 
             <div className="flex-grow flex flex-col h-full overflow-y-auto"> 
               
-              <header className="flex justify-end items-center p-4 gap-4 h-16 border-b bg-green-500 flex-none shadow-sm">
-                <span className="text-white font-bold text-lg mr-auto">✅ DEPLOYMENT V2 ACTIVE</span>
-                <SignedOut>
-                  <SignInButton>
-                    <button className="text-sm font-medium px-4 py-2 border rounded-md hover:bg-gray-50 cursor-pointer">
-                      Sign In
-                    </button>
-                  </SignInButton>
-                  <SignUpButton>
-                    <button className="bg-blue-600 text-white rounded-md font-medium px-4 py-2 cursor-pointer">
-                      Sign Up
-                    </button>
-                  </SignUpButton>
-                </SignedOut>
+              <header className="flex justify-end items-center p-4 gap-4 h-16 border-b bg-white flex-none shadow-sm">
                 <SignedIn>
                   <SubscriptionBadge />
-                  <UserButton afterSignOutUrl="/" />
                 </SignedIn>
+                <HeaderAuth />
               </header>
               
               {/* WRAP THE MAIN CONTENT WITH GoalChecker */}
