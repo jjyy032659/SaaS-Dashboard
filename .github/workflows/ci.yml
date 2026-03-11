@@ -1,0 +1,308 @@
+#===============================================================================
+# CONTINUOUS INTEGRATION (CI) WORKFLOW
+#===============================================================================
+#
+# WHAT IS CI?
+# -----------
+# CI = Continuous Integration. The idea: every time a developer pushes code,
+# automated checks run to catch bugs BEFORE they reach production.
+#
+# Think of it as a robot teammate that:
+#   1. Checks your code style (lint)
+#   2. Verifies TypeScript types are correct (type-check)
+#   3. Confirms the app actually builds without errors (build)
+#
+# WHY CI MATTERS:
+# - Catches bugs early (cheaper to fix before merging)
+# - Enforces code quality standards across the team
+# - Gives confidence when merging pull requests
+# - Documents what "passing" means for your codebase
+#
+# HOW GITHUB ACTIONS WORKS:
+# - GitHub provides free virtual machines (called "runners") to run your code
+# - Each workflow is a YAML file in .github/workflows/
+# - Workflows contain "jobs" which contain "steps"
+# - Steps run shell commands or pre-built "actions" from the marketplace
+#
+#===============================================================================
+
+# "name" is just a label shown in the GitHub UI under the Actions tab
+name: CI — Lint, Type Check & Build
+
+#===============================================================================
+# TRIGGERS (on:)
+#===============================================================================
+# "on" defines WHEN this workflow runs. Think of it as event listeners.
+#
+# Common trigger types:
+#   push:        runs when code is pushed to a branch
+#   pull_request: runs when a PR is opened, updated, or synchronized
+#   workflow_dispatch: adds a manual "Run workflow" button in GitHub UI
+#   schedule:    runs on a cron schedule (like a cron job)
+#
+on:
+  # Run CI on every push to main and develop branches
+  push:
+    branches:
+      - main
+      - develop
+      # "feature/**" matches any branch starting with "feature/"
+      # Useful if you use Git Flow or feature branches
+      # - "feature/**"
+
+  # Run CI on every pull request targeting main
+  # This is the most important trigger — blocks bad code from merging
+  pull_request:
+    branches:
+      - main
+
+  # Allow manually triggering this workflow from the GitHub Actions UI
+  # Useful for debugging or re-running checks without pushing code
+  workflow_dispatch:
+
+#===============================================================================
+# JOBS
+#===============================================================================
+# A workflow has one or more "jobs". Each job:
+#   - Runs on its own fresh virtual machine
+#   - Can run in parallel with other jobs (by default)
+#   - Can depend on other jobs (using "needs:")
+#
+# Our jobs:
+#   1. lint       — Check code style with ESLint
+#   2. type-check — Verify TypeScript types
+#   3. build      — Verify the app compiles successfully
+#
+jobs:
+
+  #=============================================================================
+  # JOB 1: LINT
+  #=============================================================================
+  # ESLint analyzes your code for:
+  #   - Code style issues (unused variables, console.log left in, etc.)
+  #   - Potential bugs (== vs ===, unreachable code)
+  #   - Next.js specific rules (no img tag, missing alt attributes, etc.)
+  #
+  lint:
+    # A human-readable name shown in the GitHub Actions UI
+    name: ESLint
+
+    # "runs-on" specifies the operating system of the runner (virtual machine)
+    # ubuntu-latest = Ubuntu Linux (latest LTS). Most common choice because:
+    #   - Free with GitHub Actions
+    #   - Fast to boot
+    #   - Great compatibility with npm tools
+    # Other options: windows-latest, macos-latest
+    runs-on: ubuntu-latest
+
+    steps:
+      #-------------------------------------------------------------------------
+      # STEP: Checkout code
+      #-------------------------------------------------------------------------
+      # Every job starts with a fresh, empty virtual machine.
+      # This step clones your repository into the runner.
+      #
+      # "uses:" means we're using a pre-built action from the marketplace.
+      # actions/checkout@v4 is maintained by GitHub itself.
+      # @v4 = version 4 (always pin to a version, not @latest, for stability)
+      #-------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      #-------------------------------------------------------------------------
+      # STEP: Setup Node.js
+      #-------------------------------------------------------------------------
+      # The runner has many tools pre-installed, but we need to pick the
+      # right Node.js version to match our local development setup.
+      #
+      # actions/setup-node@v4:
+      #   - Installs the specified Node.js version
+      #   - Sets up npm
+      #   - Optionally configures caching for node_modules
+      #
+      # "with:" passes configuration to the action (like function arguments)
+      #-------------------------------------------------------------------------
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # Cache npm dependencies between runs
+          # How caching works:
+          #   1. First run: installs deps, saves them to cache with a key
+          #   2. Next run: if package-lock.json hasn't changed, restores from cache
+          #   3. Result: npm install goes from ~60s to ~5s
+          # The cache key includes the OS and lock file hash for uniqueness
+          cache: "npm"
+
+      #-------------------------------------------------------------------------
+      # STEP: Install dependencies
+      #-------------------------------------------------------------------------
+      # npm ci = "clean install" — designed for CI environments:
+      #   - Reads exact versions from package-lock.json (reproducible builds)
+      #   - Deletes node_modules first (clean slate)
+      #   - Faster than npm install
+      #   - Fails if package.json and lock file are out of sync
+      #-------------------------------------------------------------------------
+      - name: Install dependencies
+        run: npm ci
+
+      #-------------------------------------------------------------------------
+      # STEP: Run ESLint
+      #-------------------------------------------------------------------------
+      # Your package.json has: "lint": "eslint"
+      # This checks all TypeScript/JavaScript files for style and bug issues.
+      # If ESLint finds errors, this step fails and the whole job fails.
+      #-------------------------------------------------------------------------
+      - name: Run ESLint
+        run: npm run lint
+
+  #=============================================================================
+  # JOB 2: TYPE CHECK
+  #=============================================================================
+  # TypeScript catches type errors at compile time, not runtime.
+  # Example: passing a string where a number is expected.
+  #
+  # "tsc --noEmit" runs the TypeScript compiler but doesn't output files —
+  # it only checks for type errors. This is faster than a full build.
+  #
+  type-check:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      #-------------------------------------------------------------------------
+      # STEP: TypeScript type check
+      #-------------------------------------------------------------------------
+      # tsc --noEmit:
+      #   --noEmit: Don't write output files, just type-check
+      #
+      # This catches things like:
+      #   - Property 'foo' does not exist on type 'Bar'
+      #   - Argument of type 'string' is not assignable to type 'number'
+      #   - Missing required props on React components
+      #-------------------------------------------------------------------------
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+  #=============================================================================
+  # JOB 3: BUILD
+  #=============================================================================
+  # This job verifies that "next build" succeeds — the app can be compiled
+  # into production-ready code. This catches:
+  #   - Import errors (importing a module that doesn't exist)
+  #   - Build-time errors in Server Components
+  #   - Missing environment variable references
+  #
+  # IMPORTANT: next build requires NEXT_PUBLIC_* variables to be available
+  # because they are embedded into the JavaScript bundle at build time.
+  # We use GitHub Secrets to provide them safely.
+  #
+  build:
+    name: Next.js Build
+    runs-on: ubuntu-latest
+
+    # "needs:" makes this job wait for others to succeed first.
+    # This saves compute time: if lint fails, don't bother trying to build.
+    needs: [lint, type-check]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      #-------------------------------------------------------------------------
+      # STEP: Build the Next.js application
+      #-------------------------------------------------------------------------
+      # ENVIRONMENT VARIABLES & SECRETS:
+      # -----------------------------------------------------------------------
+      # "env:" injects environment variables into this step.
+      #
+      # ${{ secrets.SECRET_NAME }} reads from GitHub Secrets:
+      #   - Go to: your repo → Settings → Secrets and variables → Actions
+      #   - Click "New repository secret"
+      #   - These are encrypted and never shown in logs
+      #
+      # WHY DO WE NEED THESE FOR BUILD?
+      # Next.js NEXT_PUBLIC_* variables are inlined into the browser bundle
+      # at BUILD time (not runtime). So next build needs them to compile.
+      #
+      # Server-side variables (CLERK_SECRET_KEY, DATABASE_URL, etc.) are
+      # read at RUNTIME, so we only need them when running the server.
+      # However, if any server component references them during build, we
+      # need to provide them here too (can use dummy values if not critical).
+      #-------------------------------------------------------------------------
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          # ── NEXT_PUBLIC_* ────────────────────────────────────────────────────
+          # These are baked into the JavaScript bundle at BUILD time.
+          # They MUST be real values — the build will fail without them.
+          # Rule of thumb: any variable starting with NEXT_PUBLIC_ goes here.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+          # For production CI, set this to your real domain (e.g. https://myapp.com)
+          # NOT localhost — the CI build should mimic production
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+          # ── SERVER-SIDE SECRETS ───────────────────────────────────────────────
+          # These are NOT baked into the bundle — they're read at request time.
+          # However, Next.js may reference them during the build phase when
+          # compiling Server Components, middleware, or generateStaticParams().
+          # Safe rule: include all of them so the build never fails unexpectedly.
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+
+          # @vercel/postgres uses POSTGRES_URL, Drizzle uses DATABASE_URL.
+          # Both point to the same Neon DB — include both to satisfy both libs.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+
+          # Stripe — included in case any server component reads these at build time
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PREMIUM_PRICE_ID: ${{ secrets.STRIPE_PREMIUM_PRICE_ID }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+
+          # Gemini — included for the same reason as above
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+          # Disable Next.js telemetry in CI (best practice)
+          NEXT_TELEMETRY_DISABLED: 1
+
+#===============================================================================
+# WHAT HAPPENS NEXT?
+#===============================================================================
+# After this workflow passes:
+#   - On a PR: GitHub shows green checkmarks, allowing the merge
+#   - On push to main: the CD workflow (cd.yml) kicks off to deploy
+#
+# To see results:
+#   - Go to your GitHub repo → Actions tab
+#   - Click on any workflow run to see logs
+#   - Red X = failed, Green check = passed
+#
+# ADDING MORE JOBS LATER (ideas):
+#   - Unit tests: run Jest or Vitest
+#   - E2E tests: run Playwright or Cypress
+#   - Bundle size check: warn if build size grows too much
+#   - Security audit: npm audit --audit-level=high
+#===============================================================================

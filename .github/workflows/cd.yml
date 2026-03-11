@@ -1,0 +1,399 @@
+#===============================================================================
+# CONTINUOUS DEPLOYMENT (CD) WORKFLOW
+#===============================================================================
+#
+# WHAT IS CD?
+# -----------
+# CD = Continuous Deployment (or Continuous Delivery).
+#
+# Continuous Delivery:   code is automatically PREPARED for deployment (staged)
+# Continuous Deployment: code is automatically PUSHED to production on every merge
+#
+# This workflow does Continuous Delivery:
+#   1. Builds a Docker image of your app
+#   2. Pushes it to GitHub Container Registry (GHCR) — a free Docker registry
+#   3. Tags the image with the git commit SHA (for traceability)
+#
+# WHAT YOU STILL NEED TO DO MANUALLY (or automate later):
+#   - Pull the new image on your server and restart the container
+#   - Or use a hosting platform (Railway, Render, Fly.io) that watches GHCR
+#
+# THE FULL DEVOPS FLOW:
+#
+#   Developer                GitHub                     Production Server
+#   ---------                ------                     -----------------
+#   git push main ──────► CI runs (ci.yml) ──PASS──► CD runs (cd.yml)
+#                                          │                    │
+#                                          │         Docker image built & pushed
+#                                          │         to ghcr.io/your-repo
+#                                          │                    │
+#                                          │         Server pulls new image
+#                                          │         and restarts container
+#                                          │
+#                                        FAIL ──► Workflow stops, no deployment
+#
+#===============================================================================
+
+name: CD — Build & Push Docker Image
+
+#===============================================================================
+# TRIGGERS
+#===============================================================================
+# This workflow ONLY runs when code is merged/pushed to main.
+# We don't build Docker images for every branch — only production-ready code.
+#
+on:
+  push:
+    branches:
+      - main
+
+  # Also allow manual triggering (useful for re-deploying without code changes)
+  workflow_dispatch:
+
+#===============================================================================
+# PERMISSIONS
+#===============================================================================
+# By default, GitHub Actions workflows have limited permissions.
+# We need to explicitly grant permissions for specific actions.
+#
+# "packages: write" allows pushing Docker images to GitHub Container Registry
+# "contents: read" allows reading the repository code
+# "id-token: write" enables OIDC token generation (for cloud auth - see notes)
+#
+permissions:
+  contents: read
+  packages: write
+  # id-token: write  # Uncomment if using OIDC auth with AWS/GCP/Azure
+
+#===============================================================================
+# ENVIRONMENT VARIABLES (global)
+#===============================================================================
+# Variables defined here are available to ALL jobs and steps in this file.
+# Good for values used in multiple places (avoid repetition).
+#
+# REGISTRY: GitHub Container Registry URL
+#   - ghcr.io = GitHub Container Registry (free, integrated with GitHub)
+#   - Alternative: hub.docker.com (Docker Hub), ECR (AWS), GCR (Google Cloud)
+#
+# IMAGE_NAME: The name of your Docker image
+#   - github.repository = "username/repo-name" (auto-populated by GitHub)
+#   - Results in: ghcr.io/username/my-saas-dashboard
+#
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+#===============================================================================
+# JOBS
+#===============================================================================
+jobs:
+
+  #=============================================================================
+  # JOB: BUILD AND PUSH DOCKER IMAGE
+  #=============================================================================
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+
+    # "outputs:" allows this job to pass data to other jobs (if you add more later)
+    # Here we expose the image digest — a unique hash that identifies the exact image
+    outputs:
+      image-digest: ${{ steps.build-push.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      #-------------------------------------------------------------------------
+      # STEP 1: Checkout repository
+      #-------------------------------------------------------------------------
+      # Clone the repo so we have the Dockerfile and source code.
+      # fetch-depth: 0 = clone full history (needed for some git-based versioning)
+      # fetch-depth: 1 (default) = only the latest commit (faster)
+      #-------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      #-------------------------------------------------------------------------
+      # STEP 2: Set up Docker Buildx
+      #-------------------------------------------------------------------------
+      # Buildx is Docker's extended build tool. It enables:
+      #   - Multi-platform builds (build for linux/amd64 AND linux/arm64)
+      #   - Better layer caching with --cache-from/--cache-to
+      #   - BuildKit features (more efficient than classic Docker builder)
+      #
+      # WHY MULTI-PLATFORM?
+      # Your dev machine might be ARM (Apple M1/M2), but your server is x86.
+      # Without multi-platform support, the image won't run on the server.
+      # With buildx + linux/amd64, it works on most cloud servers.
+      #-------------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      #-------------------------------------------------------------------------
+      # STEP 3: Log in to GitHub Container Registry
+      #-------------------------------------------------------------------------
+      # Before pushing images, we need to authenticate with the registry.
+      #
+      # GITHUB_TOKEN:
+      # - Automatically created by GitHub for each workflow run
+      # - Has permissions based on what we set in "permissions:" above
+      # - No setup needed — it's always available as secrets.GITHUB_TOKEN
+      # - Expires when the workflow run ends
+      #
+      # This is different from your Personal Access Token (PAT).
+      # PAT is created manually and has broader, longer-lasting permissions.
+      # GITHUB_TOKEN is scoped to the current repo and workflow run.
+      #-------------------------------------------------------------------------
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}        # The user who triggered the workflow
+          password: ${{ secrets.GITHUB_TOKEN }} # Auto-provided by GitHub, no setup needed
+
+      #-------------------------------------------------------------------------
+      # STEP 4: Extract Docker image metadata
+      #-------------------------------------------------------------------------
+      # Docker images need tags to identify versions.
+      # docker/metadata-action automatically generates smart tags based on git info.
+      #
+      # WHAT ARE DOCKER TAGS?
+      # Tags are labels attached to an image version. Examples:
+      #   - ghcr.io/user/app:latest     ← always points to newest image
+      #   - ghcr.io/user/app:main       ← built from the main branch
+      #   - ghcr.io/user/app:sha-abc123 ← built from commit abc123
+      #
+      # WHY USE COMMIT SHA TAGS?
+      # If you discover a bug in production, you can quickly roll back to
+      # a specific commit by pulling that exact image tag.
+      # "latest" always changes; sha-abc123 never does.
+      #
+      # "labels:" adds Docker image labels (metadata visible with docker inspect)
+      # org.opencontainers.image.* = standard label schema for container images
+      #-------------------------------------------------------------------------
+      - name: Extract Docker metadata
+        id: meta      # "id" lets us reference this step's outputs later
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # "latest" tag — always points to the most recently built image
+            # WARNING: "latest" is mutable (it changes). Never rely on it for
+            # rollbacks. Use commit SHA tags for that.
+            type=raw,value=latest,enable={{is_default_branch}}
+
+            # Branch name tag — e.g., "main", "develop"
+            # Useful for environment-specific pulls: pull "main" for production
+            type=ref,event=branch
+
+            # Git SHA tag — unique, immutable identifier for this exact commit
+            # Format: sha-abc1234 (short 7-char SHA)
+            # This is what you use for rollbacks: docker pull image:sha-abc1234
+            type=sha,prefix=sha-
+
+            # Semantic versioning tags (if you use git tags like v1.2.3)
+            # Creates: :1, :1.2, :1.2.3 tags automatically
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      #-------------------------------------------------------------------------
+      # STEP 5: Build & push Docker image
+      #-------------------------------------------------------------------------
+      # This is the main step — it builds the Docker image using your Dockerfile
+      # and pushes it to GHCR.
+      #
+      # KEY CONCEPTS:
+      #
+      # context: "."
+      #   The build context — the directory Docker sends to the daemon.
+      #   "." means the root of the repository.
+      #   Docker can only access files within this directory during build.
+      #
+      # push: true
+      #   After building, automatically push to the registry.
+      #   Set to false to build without pushing (useful for testing).
+      #
+      # cache-from / cache-to:
+      #   Docker layer caching stored in the registry.
+      #   "gha" = GitHub Actions cache (faster and free for public repos).
+      #   How it works:
+      #     - First build: builds every layer, saves to cache
+      #     - Second build: if layer inputs haven't changed, restores from cache
+      #     - Example: if package.json didn't change, npm ci is skipped
+      #   This turns ~4 minute builds into ~45 second builds for small changes.
+      #
+      # build-args:
+      #   These match the ARG instructions in your Dockerfile.
+      #   NEXT_PUBLIC_* variables must be set at build time (they're baked
+      #   into the JavaScript bundle). We read them from GitHub Secrets.
+      #
+      # platforms:
+      #   linux/amd64 = 64-bit x86 (most cloud servers, Intel/AMD CPUs)
+      #   linux/arm64 = 64-bit ARM (AWS Graviton, Apple Silicon, Raspberry Pi)
+      #   Building both lets your image run on either architecture.
+      #   NOTE: Multi-platform builds are slower (2x build time).
+      #   Remove linux/arm64 if you don't need it.
+      #-------------------------------------------------------------------------
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+
+          # Use the tags and labels generated by the metadata step
+          # steps.meta.outputs.tags = all the tags we configured above
+          # steps.meta.outputs.labels = OCI standard labels
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+          # Layer cache stored in GitHub Actions cache
+          # mode=max caches all layers, not just the final stage
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+          # Build arguments — passed to ARG instructions in the Dockerfile
+          # These become available as ENV variables in the builder stage
+          # See your Dockerfile: ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, etc.
+          # Build args match the ARG instructions in your Dockerfile.
+          # Only NEXT_PUBLIC_* variables need to be baked in at build time.
+          # Server-side secrets (CLERK_SECRET_KEY, DATABASE_URL, etc.) are passed
+          # at runtime via docker run --env-file, NOT during docker build.
+          build-args: |
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+            NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      #-------------------------------------------------------------------------
+      # STEP 6: Print the image summary
+      #-------------------------------------------------------------------------
+      # Outputs information about the built image for easy reference.
+      # The digest is a unique sha256 hash — unlike tags, it NEVER changes.
+      # You can pull a specific digest with: docker pull image@sha256:abc...
+      #
+      # ">> $GITHUB_STEP_SUMMARY" writes Markdown to the workflow summary page
+      # Visible at: Actions tab → your run → Summary
+      #-------------------------------------------------------------------------
+      - name: Print image summary
+        run: |
+          echo "## Docker Image Built Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags pushed:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image digest (immutable ID):**" >> $GITHUB_STEP_SUMMARY
+          echo "\`${{ steps.build-push.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull commands:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull by commit SHA (recommended for production)" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  #=============================================================================
+  # JOB: NOTIFY (Optional — shows how jobs chain together)
+  #=============================================================================
+  # This job runs AFTER the build job. It shows how you'd notify your team
+  # (Slack, email, etc.) when a deployment is ready.
+  #
+  # To actually use Slack notifications:
+  #   1. Create a Slack app at api.slack.com
+  #   2. Get a webhook URL
+  #   3. Add it as a GitHub Secret: SLACK_WEBHOOK_URL
+  #   4. Uncomment the Slack step below
+  #
+  notify:
+    name: Notify Deployment Ready
+    runs-on: ubuntu-latest
+    needs: build-and-push   # Only run after build-and-push succeeds
+
+    # "if:" conditions let you control when a job runs
+    # always() = run even if previous jobs failed (useful for notifications)
+    # success() = only run if all needed jobs succeeded (default)
+    # failure() = only run if a needed job failed
+    if: always()
+
+    steps:
+      - name: Report deployment status
+        run: |
+          # ${{ needs.build-and-push.result }} = "success" or "failure"
+          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
+            echo "✅ Docker image built and pushed successfully!"
+            echo "Image: ${{ needs.build-and-push.outputs.image-tags }}"
+            echo "Digest: ${{ needs.build-and-push.outputs.image-digest }}"
+            echo ""
+            echo "Next step: Pull this image on your server and restart the container."
+            echo "Command: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          else
+            echo "❌ Docker build failed. Check the build-and-push job logs."
+          fi
+
+      # EXAMPLE: Slack notification (uncomment and configure to use)
+      # - name: Send Slack notification
+      #   if: always()
+      #   uses: slackapi/slack-github-action@v1.26.0
+      #   with:
+      #     payload: |
+      #       {
+      #         "text": "${{ needs.build-and-push.result == 'success' && '✅' || '❌' }} CD Pipeline: ${{ needs.build-and-push.result }}",
+      #         "blocks": [{
+      #           "type": "section",
+      #           "text": {
+      #             "type": "mrkdwn",
+      #             "text": "*Deployment Status:* ${{ needs.build-and-push.result }}\n*Repo:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}"
+      #           }
+      #         }]
+      #       }
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+#===============================================================================
+# AFTER THIS WORKFLOW — DEPLOYING TO A SERVER
+#===============================================================================
+#
+# This workflow builds and pushes the image, but doesn't deploy it.
+# Here are common ways to complete the deployment:
+#
+# OPTION 1: SSH into server and pull manually
+# -------------------------------------------
+# Add a step that SSHs into your server:
+#
+#   - name: Deploy to server
+#     uses: appleboy/ssh-action@v1
+#     with:
+#       host: ${{ secrets.SERVER_HOST }}
+#       username: ${{ secrets.SERVER_USER }}
+#       key: ${{ secrets.SERVER_SSH_KEY }}
+#       script: |
+#         docker pull ghcr.io/your-user/your-repo:latest
+#         docker stop my-app || true
+#         docker rm my-app || true
+#         docker run -d --name my-app -p 3000:3000 \
+#           --env-file /etc/my-app/.env \
+#           ghcr.io/your-user/your-repo:latest
+#
+# OPTION 2: Use a hosting platform
+# ---------------------------------
+# Platforms like Railway, Render, Fly.io, or DigitalOcean App Platform
+# can watch your GHCR image and auto-deploy when it changes.
+#
+# OPTION 3: Kubernetes (k8s)
+# --------------------------
+# If you use Kubernetes, update the deployment image:
+#   kubectl set image deployment/my-app my-app=ghcr.io/user/repo:sha-abc123
+#
+# OPTION 4: Use your Terraform setup
+# -----------------------------------
+# You already have Terraform! Add a step that runs terraform apply
+# with the new image tag as a variable.
+#
+#===============================================================================
