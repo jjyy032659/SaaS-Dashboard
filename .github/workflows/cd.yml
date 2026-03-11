@@ -2,398 +2,210 @@
 # CONTINUOUS DEPLOYMENT (CD) WORKFLOW
 #===============================================================================
 #
-# WHAT IS CD?
-# -----------
-# CD = Continuous Deployment (or Continuous Delivery).
+# FLOW:
+#   git push main
+#     → CI passes (ci.yml)
+#     → CD runs (this file):
+#         1. Build Docker image
+#         2. Push to AWS ECR
+#         3. SSH into EC2 and run deploy.sh
 #
-# Continuous Delivery:   code is automatically PREPARED for deployment (staged)
-# Continuous Deployment: code is automatically PUSHED to production on every merge
+# REQUIRED GITHUB SECRETS:
+# ─────────────────────────────────────────────────────────────────────────────
+# AWS credentials (for pushing to ECR):
+#   AWS_ACCESS_KEY_ID        — IAM user access key
+#   AWS_SECRET_ACCESS_KEY    — IAM user secret key
+#   AWS_REGION               — e.g. us-east-1
+#   AWS_ACCOUNT_ID           — your 12-digit AWS account ID
 #
-# This workflow does Continuous Delivery:
-#   1. Builds a Docker image of your app
-#   2. Pushes it to GitHub Container Registry (GHCR) — a free Docker registry
-#   3. Tags the image with the git commit SHA (for traceability)
+# EC2 SSH (for triggering deploy):
+#   EC2_HOST                 — your EC2 Elastic IP (from: terraform output elastic_ip)
+#   EC2_SSH_KEY              — contents of your .pem file (the full private key)
 #
-# WHAT YOU STILL NEED TO DO MANUALLY (or automate later):
-#   - Pull the new image on your server and restart the container
-#   - Or use a hosting platform (Railway, Render, Fly.io) that watches GHCR
+# App build-time env vars:
+#   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+#   NEXT_PUBLIC_APP_URL
 #
-# THE FULL DEVOPS FLOW:
+# How to find your values:
+#   AWS_ACCOUNT_ID  → AWS Console > top-right account menu, or: aws sts get-caller-identity
+#   AWS_REGION      → the region you ran terraform apply in (check terraform.tfvars)
+#   ECR repo URL    → terraform output ecr_repository_url
+#   EC2_HOST        → terraform output elastic_ip
+#   EC2_SSH_KEY     → contents of the .pem file used in var.key_pair_name
 #
-#   Developer                GitHub                     Production Server
-#   ---------                ------                     -----------------
-#   git push main ──────► CI runs (ci.yml) ──PASS──► CD runs (cd.yml)
-#                                          │                    │
-#                                          │         Docker image built & pushed
-#                                          │         to ghcr.io/your-repo
-#                                          │                    │
-#                                          │         Server pulls new image
-#                                          │         and restarts container
-#                                          │
-#                                        FAIL ──► Workflow stops, no deployment
-#
+# Add secrets at: GitHub repo → Settings → Secrets and variables → Actions
 #===============================================================================
 
-name: CD — Build & Push Docker Image
+name: CD — Build, Push to ECR & Deploy to EC2
 
-#===============================================================================
-# TRIGGERS
-#===============================================================================
-# This workflow ONLY runs when code is merged/pushed to main.
-# We don't build Docker images for every branch — only production-ready code.
-#
 on:
   push:
     branches:
       - main
-
-  # Also allow manual triggering (useful for re-deploying without code changes)
   workflow_dispatch:
 
-#===============================================================================
-# PERMISSIONS
-#===============================================================================
-# By default, GitHub Actions workflows have limited permissions.
-# We need to explicitly grant permissions for specific actions.
-#
-# "packages: write" allows pushing Docker images to GitHub Container Registry
-# "contents: read" allows reading the repository code
-# "id-token: write" enables OIDC token generation (for cloud auth - see notes)
-#
 permissions:
   contents: read
-  packages: write
-  # id-token: write  # Uncomment if using OIDC auth with AWS/GCP/Azure
 
 #===============================================================================
-# ENVIRONMENT VARIABLES (global)
+# GLOBAL ENV VARS
 #===============================================================================
-# Variables defined here are available to ALL jobs and steps in this file.
-# Good for values used in multiple places (avoid repetition).
-#
-# REGISTRY: GitHub Container Registry URL
-#   - ghcr.io = GitHub Container Registry (free, integrated with GitHub)
-#   - Alternative: hub.docker.com (Docker Hub), ECR (AWS), GCR (Google Cloud)
-#
-# IMAGE_NAME: The name of your Docker image
-#   - github.repository = "username/repo-name" (auto-populated by GitHub)
-#   - Results in: ghcr.io/username/my-saas-dashboard
-#
+# ECR URL format: {account_id}.dkr.ecr.{region}.amazonaws.com/{repo_name}
+# The repo name matches var.project_name in your Terraform (default: my-saas-dashboard)
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  ECR_REPOSITORY: my-saas-dashboard   # Must match var.project_name in terraform.tfvars
 
-#===============================================================================
-# JOBS
-#===============================================================================
 jobs:
 
   #=============================================================================
-  # JOB: BUILD AND PUSH DOCKER IMAGE
+  # JOB 1: BUILD & PUSH TO ECR
   #=============================================================================
   build-and-push:
-    name: Build & Push Docker Image
+    name: Build & Push to AWS ECR
     runs-on: ubuntu-latest
 
-    # "outputs:" allows this job to pass data to other jobs (if you add more later)
-    # Here we expose the image digest — a unique hash that identifies the exact image
     outputs:
-      image-digest: ${{ steps.build-push.outputs.digest }}
-      image-tags: ${{ steps.meta.outputs.tags }}
+      image-tag: ${{ steps.set-tag.outputs.tag }}
+      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
 
     steps:
-      #-------------------------------------------------------------------------
-      # STEP 1: Checkout repository
-      #-------------------------------------------------------------------------
-      # Clone the repo so we have the Dockerfile and source code.
-      # fetch-depth: 0 = clone full history (needed for some git-based versioning)
-      # fetch-depth: 1 (default) = only the latest commit (faster)
-      #-------------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      #-------------------------------------------------------------------------
-      # STEP 2: Set up Docker Buildx
-      #-------------------------------------------------------------------------
-      # Buildx is Docker's extended build tool. It enables:
-      #   - Multi-platform builds (build for linux/amd64 AND linux/arm64)
-      #   - Better layer caching with --cache-from/--cache-to
-      #   - BuildKit features (more efficient than classic Docker builder)
+      #---------------------------------------------------------------------------
+      # STEP: Configure AWS credentials
+      #---------------------------------------------------------------------------
+      # This lets GitHub Actions authenticate with your AWS account.
+      # Uses the IAM user credentials stored in GitHub Secrets.
       #
-      # WHY MULTI-PLATFORM?
-      # Your dev machine might be ARM (Apple M1/M2), but your server is x86.
-      # Without multi-platform support, the image won't run on the server.
-      # With buildx + linux/amd64, it works on most cloud servers.
-      #-------------------------------------------------------------------------
+      # The IAM user needs these permissions:
+      #   ecr:GetAuthorizationToken
+      #   ecr:BatchCheckLayerAvailability
+      #   ecr:GetDownloadUrlForLayer
+      #   ecr:BatchGetImage
+      #   ecr:InitiateLayerUpload
+      #   ecr:UploadLayerPart
+      #   ecr:CompleteLayerUpload
+      #   ecr:PutImage
+      #
+      # See: AWS Console → IAM → Users → your-user → Permissions
+      #---------------------------------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      #---------------------------------------------------------------------------
+      # STEP: Log in to Amazon ECR
+      #---------------------------------------------------------------------------
+      # Gets a temporary auth token (valid 12h) and logs Docker into ECR.
+      # The "registry" output gives us the ECR base URL for tagging images.
+      #---------------------------------------------------------------------------
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      #---------------------------------------------------------------------------
+      # STEP: Generate image tag
+      #---------------------------------------------------------------------------
+      # Tag format: sha-{short-commit} (e.g. sha-a1b2c3d)
+      # This makes every image uniquely traceable to its source commit.
+      # We also tag :latest to always point at the most recent build.
+      #---------------------------------------------------------------------------
+      - name: Generate image tag
+        id: set-tag
+        run: echo "tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      #-------------------------------------------------------------------------
-      # STEP 3: Log in to GitHub Container Registry
-      #-------------------------------------------------------------------------
-      # Before pushing images, we need to authenticate with the registry.
+      #---------------------------------------------------------------------------
+      # STEP: Build & push Docker image to ECR
+      #---------------------------------------------------------------------------
+      # Builds your Dockerfile and pushes two tags to ECR:
+      #   :latest     — always points to the newest image
+      #   :sha-abc123 — immutable, tied to this exact commit (use for rollbacks)
       #
-      # GITHUB_TOKEN:
-      # - Automatically created by GitHub for each workflow run
-      # - Has permissions based on what we set in "permissions:" above
-      # - No setup needed — it's always available as secrets.GITHUB_TOKEN
-      # - Expires when the workflow run ends
-      #
-      # This is different from your Personal Access Token (PAT).
-      # PAT is created manually and has broader, longer-lasting permissions.
-      # GITHUB_TOKEN is scoped to the current repo and workflow run.
-      #-------------------------------------------------------------------------
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}        # The user who triggered the workflow
-          password: ${{ secrets.GITHUB_TOKEN }} # Auto-provided by GitHub, no setup needed
-
-      #-------------------------------------------------------------------------
-      # STEP 4: Extract Docker image metadata
-      #-------------------------------------------------------------------------
-      # Docker images need tags to identify versions.
-      # docker/metadata-action automatically generates smart tags based on git info.
-      #
-      # WHAT ARE DOCKER TAGS?
-      # Tags are labels attached to an image version. Examples:
-      #   - ghcr.io/user/app:latest     ← always points to newest image
-      #   - ghcr.io/user/app:main       ← built from the main branch
-      #   - ghcr.io/user/app:sha-abc123 ← built from commit abc123
-      #
-      # WHY USE COMMIT SHA TAGS?
-      # If you discover a bug in production, you can quickly roll back to
-      # a specific commit by pulling that exact image tag.
-      # "latest" always changes; sha-abc123 never does.
-      #
-      # "labels:" adds Docker image labels (metadata visible with docker inspect)
-      # org.opencontainers.image.* = standard label schema for container images
-      #-------------------------------------------------------------------------
-      - name: Extract Docker metadata
-        id: meta      # "id" lets us reference this step's outputs later
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            # "latest" tag — always points to the most recently built image
-            # WARNING: "latest" is mutable (it changes). Never rely on it for
-            # rollbacks. Use commit SHA tags for that.
-            type=raw,value=latest,enable={{is_default_branch}}
-
-            # Branch name tag — e.g., "main", "develop"
-            # Useful for environment-specific pulls: pull "main" for production
-            type=ref,event=branch
-
-            # Git SHA tag — unique, immutable identifier for this exact commit
-            # Format: sha-abc1234 (short 7-char SHA)
-            # This is what you use for rollbacks: docker pull image:sha-abc1234
-            type=sha,prefix=sha-
-
-            # Semantic versioning tags (if you use git tags like v1.2.3)
-            # Creates: :1, :1.2, :1.2.3 tags automatically
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      #-------------------------------------------------------------------------
-      # STEP 5: Build & push Docker image
-      #-------------------------------------------------------------------------
-      # This is the main step — it builds the Docker image using your Dockerfile
-      # and pushes it to GHCR.
-      #
-      # KEY CONCEPTS:
-      #
-      # context: "."
-      #   The build context — the directory Docker sends to the daemon.
-      #   "." means the root of the repository.
-      #   Docker can only access files within this directory during build.
-      #
-      # push: true
-      #   After building, automatically push to the registry.
-      #   Set to false to build without pushing (useful for testing).
-      #
-      # cache-from / cache-to:
-      #   Docker layer caching stored in the registry.
-      #   "gha" = GitHub Actions cache (faster and free for public repos).
-      #   How it works:
-      #     - First build: builds every layer, saves to cache
-      #     - Second build: if layer inputs haven't changed, restores from cache
-      #     - Example: if package.json didn't change, npm ci is skipped
-      #   This turns ~4 minute builds into ~45 second builds for small changes.
-      #
-      # build-args:
-      #   These match the ARG instructions in your Dockerfile.
-      #   NEXT_PUBLIC_* variables must be set at build time (they're baked
-      #   into the JavaScript bundle). We read them from GitHub Secrets.
-      #
-      # platforms:
-      #   linux/amd64 = 64-bit x86 (most cloud servers, Intel/AMD CPUs)
-      #   linux/arm64 = 64-bit ARM (AWS Graviton, Apple Silicon, Raspberry Pi)
-      #   Building both lets your image run on either architecture.
-      #   NOTE: Multi-platform builds are slower (2x build time).
-      #   Remove linux/arm64 if you don't need it.
-      #-------------------------------------------------------------------------
-      - name: Build and push Docker image
-        id: build-push
+      # Layer caching: GitHub Actions cache is used to avoid rebuilding unchanged
+      # layers. This turns ~4min builds into ~45sec for small changes.
+      #---------------------------------------------------------------------------
+      - name: Build and push Docker image to ECR
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64
-
-          # Use the tags and labels generated by the metadata step
-          # steps.meta.outputs.tags = all the tags we configured above
-          # steps.meta.outputs.labels = OCI standard labels
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-          # Layer cache stored in GitHub Actions cache
-          # mode=max caches all layers, not just the final stage
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.set-tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-          # Build arguments — passed to ARG instructions in the Dockerfile
-          # These become available as ENV variables in the builder stage
-          # See your Dockerfile: ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, etc.
-          # Build args match the ARG instructions in your Dockerfile.
-          # Only NEXT_PUBLIC_* variables need to be baked in at build time.
-          # Server-side secrets (CLERK_SECRET_KEY, DATABASE_URL, etc.) are passed
-          # at runtime via docker run --env-file, NOT during docker build.
+          # NEXT_PUBLIC_* variables must be baked in at build time
           build-args: |
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
             NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
             NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
             NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
 
-      #-------------------------------------------------------------------------
-      # STEP 6: Print the image summary
-      #-------------------------------------------------------------------------
-      # Outputs information about the built image for easy reference.
-      # The digest is a unique sha256 hash — unlike tags, it NEVER changes.
-      # You can pull a specific digest with: docker pull image@sha256:abc...
-      #
-      # ">> $GITHUB_STEP_SUMMARY" writes Markdown to the workflow summary page
-      # Visible at: Actions tab → your run → Summary
-      #-------------------------------------------------------------------------
       - name: Print image summary
         run: |
-          echo "## Docker Image Built Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Image Pushed to ECR" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry:** \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags pushed:**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image digest (immutable ID):**" >> $GITHUB_STEP_SUMMARY
-          echo "\`${{ steps.build-push.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Pull commands:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "# Pull latest" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# Pull by commit SHA (recommended for production)" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${{ steps.login-ecr.outputs.registry }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** \`${{ env.ECR_REPOSITORY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.set-tag.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
 
   #=============================================================================
-  # JOB: NOTIFY (Optional — shows how jobs chain together)
+  # JOB 2: DEPLOY TO EC2
   #=============================================================================
-  # This job runs AFTER the build job. It shows how you'd notify your team
-  # (Slack, email, etc.) when a deployment is ready.
-  #
-  # To actually use Slack notifications:
-  #   1. Create a Slack app at api.slack.com
-  #   2. Get a webhook URL
-  #   3. Add it as a GitHub Secret: SLACK_WEBHOOK_URL
-  #   4. Uncomment the Slack step below
-  #
-  notify:
-    name: Notify Deployment Ready
+  # Runs AFTER the image is successfully pushed to ECR.
+  # SSHs into your EC2 instance and runs /opt/app/deploy.sh which:
+  #   1. Logs into ECR (refreshes the 12h token)
+  #   2. Pulls the new image
+  #   3. Restarts the container via docker compose
+  #=============================================================================
+  deploy:
+    name: Deploy to EC2
     runs-on: ubuntu-latest
-    needs: build-and-push   # Only run after build-and-push succeeds
-
-    # "if:" conditions let you control when a job runs
-    # always() = run even if previous jobs failed (useful for notifications)
-    # success() = only run if all needed jobs succeeded (default)
-    # failure() = only run if a needed job failed
-    if: always()
+    needs: build-and-push   # Only deploy if the image was pushed successfully
 
     steps:
-      - name: Report deployment status
+      #---------------------------------------------------------------------------
+      # STEP: SSH into EC2 and run deploy.sh
+      #---------------------------------------------------------------------------
+      # appleboy/ssh-action connects to your EC2 instance and runs the script.
+      #
+      # EC2_HOST    → your Elastic IP (terraform output elastic_ip)
+      # EC2_SSH_KEY → the full contents of your .pem key file
+      #              (copy-paste the entire file including -----BEGIN/END-----)
+      #
+      # deploy.sh is already on your server at /opt/app/deploy.sh (set up by
+      # Terraform user-data.sh). It accepts an image tag as the first argument.
+      #
+      # We pass the commit SHA tag so the server pulls the exact image we just built.
+      #---------------------------------------------------------------------------
+      - name: Deploy new image on EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/app
+            ./deploy.sh ${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Print deploy summary
         run: |
-          # ${{ needs.build-and-push.result }} = "success" or "failure"
-          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
-            echo "✅ Docker image built and pushed successfully!"
-            echo "Image: ${{ needs.build-and-push.outputs.image-tags }}"
-            echo "Digest: ${{ needs.build-and-push.outputs.image-digest }}"
-            echo ""
-            echo "Next step: Pull this image on your server and restart the container."
-            echo "Command: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          else
-            echo "❌ Docker build failed. Check the build-and-push job logs."
-          fi
-
-      # EXAMPLE: Slack notification (uncomment and configure to use)
-      # - name: Send Slack notification
-      #   if: always()
-      #   uses: slackapi/slack-github-action@v1.26.0
-      #   with:
-      #     payload: |
-      #       {
-      #         "text": "${{ needs.build-and-push.result == 'success' && '✅' || '❌' }} CD Pipeline: ${{ needs.build-and-push.result }}",
-      #         "blocks": [{
-      #           "type": "section",
-      #           "text": {
-      #             "type": "mrkdwn",
-      #             "text": "*Deployment Status:* ${{ needs.build-and-push.result }}\n*Repo:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}"
-      #           }
-      #         }]
-      #       }
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      #     SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-
-#===============================================================================
-# AFTER THIS WORKFLOW — DEPLOYING TO A SERVER
-#===============================================================================
-#
-# This workflow builds and pushes the image, but doesn't deploy it.
-# Here are common ways to complete the deployment:
-#
-# OPTION 1: SSH into server and pull manually
-# -------------------------------------------
-# Add a step that SSHs into your server:
-#
-#   - name: Deploy to server
-#     uses: appleboy/ssh-action@v1
-#     with:
-#       host: ${{ secrets.SERVER_HOST }}
-#       username: ${{ secrets.SERVER_USER }}
-#       key: ${{ secrets.SERVER_SSH_KEY }}
-#       script: |
-#         docker pull ghcr.io/your-user/your-repo:latest
-#         docker stop my-app || true
-#         docker rm my-app || true
-#         docker run -d --name my-app -p 3000:3000 \
-#           --env-file /etc/my-app/.env \
-#           ghcr.io/your-user/your-repo:latest
-#
-# OPTION 2: Use a hosting platform
-# ---------------------------------
-# Platforms like Railway, Render, Fly.io, or DigitalOcean App Platform
-# can watch your GHCR image and auto-deploy when it changes.
-#
-# OPTION 3: Kubernetes (k8s)
-# --------------------------
-# If you use Kubernetes, update the deployment image:
-#   kubectl set image deployment/my-app my-app=ghcr.io/user/repo:sha-abc123
-#
-# OPTION 4: Use your Terraform setup
-# -----------------------------------
-# You already have Terraform! Add a step that runs terraform apply
-# with the new image tag as a variable.
-#
-#===============================================================================
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Server:** \`${{ secrets.EC2_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image tag deployed:** \`${{ needs.build-and-push.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To rollback, SSH into EC2 and run:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "cd /opt/app && ./deploy.sh <previous-sha-tag>" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
