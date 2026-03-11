@@ -14,7 +14,7 @@ interface GoalAdvisorModalProps {
         macroFatG: number;
         macroCarbsG: number;
     }) => void;
-    generateGoalRecommendationsAction: (prevState: any, formData: FormData) => Promise<any>;
+    generateGoalRecommendationsAction: (prevState: unknown, formData: FormData) => Promise<{ success: boolean; goalRecommendation?: string; error?: string }>;
 }
 
 export default function GoalAdvisorModal({

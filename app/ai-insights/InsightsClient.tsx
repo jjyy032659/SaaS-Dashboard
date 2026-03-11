@@ -33,7 +33,7 @@ interface InsightsClientProps {
     };
     totalDays: number;
     missingDays: number;
-    generateNutritionInsightsAction: (data: any) => Promise<{ success: boolean; insights?: string; message?: string }>;
+    generateNutritionInsightsAction: (data: Record<string, unknown>) => Promise<{ success: boolean; insights?: string; message?: string }>;
 }
 
 export default function InsightsClient({

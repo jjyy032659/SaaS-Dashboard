@@ -6,7 +6,21 @@ import { useFormStatus } from 'react-dom';
 import { useActionState } from 'react';
 import { Camera, Zap, AlertTriangle, PlusCircle, XCircle } from 'lucide-react';
 
-// Assuming these types are available from your existing setup/lib/validation.ts
+interface AnalysisResult {
+    description: string;
+    calories: number;
+    proteinG: number;
+    fatG: number;
+    carbsG: number;
+}
+
+interface MacroTotals {
+    calories: number;
+    proteinG: number;
+    fatG: number;
+    carbsG: number;
+}
+
 interface FormState {
     message: string;
     success: boolean;
@@ -66,8 +80,8 @@ export default function AIMealLogClient({ logMealAction, analyzeImageAction }: A
     const [base64Images, setBase64Images] = useState<string[]>([]); // Array of base64 images
     const [selectedMealType, setSelectedMealType] = useState<string>('LUNCH');
     const [analyzing, setAnalyzing] = useState(false); // Loading state for analysis
-    const [individualResults, setIndividualResults] = useState<any[]>([]); // Individual analysis results
-    const [totalMacros, setTotalMacros] = useState<any>(null); // Combined totals
+    const [individualResults, setIndividualResults] = useState<AnalysisResult[]>([]); // Individual analysis results
+    const [totalMacros, setTotalMacros] = useState<MacroTotals | null>(null); // Combined totals
 
     // Clears log status after a delay
     useMemo(() => {
@@ -196,8 +210,9 @@ export default function AIMealLogClient({ logMealAction, analyzeImageAction }: A
                 message: `Successfully analyzed ${results.length} image${results.length > 1 ? 's' : ''}!`
             });
 
-        } catch (error: any) {
-            setLogState({ success: false, message: `Analysis failed: ${error.message}` });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            setLogState({ success: false, message: `Analysis failed: ${message}` });
         } finally {
             setAnalyzing(false);
         }

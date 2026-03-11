@@ -424,7 +424,7 @@ Use whole numbers only. Be realistic about portion sizes.`;
             aiSuggestion: suggestionData,
         };
 
-    } catch (e: any) {
+    } catch (e) {
         console.error("Gemini Image Analysis Error:", e);
         const errorMessage = e?.message || e?.toString() || 'Unknown error';
         console.error("Error details:", errorMessage);
@@ -484,7 +484,7 @@ export async function analyzeGoalProgressAction(
 
         return response.text || "No response from AI";
 
-    } catch (e: any) {
+    } catch (e) {
         console.error("Gemini Goal Analysis Error:", e);
         return "Failed to load AI goal analysis due to an API error.";
     }
@@ -637,7 +637,7 @@ Be specific, data-driven, encouraging, and actionable. Use the actual numbers pr
             insights: insights,
         };
 
-    } catch (e: any) {
+    } catch (e) {
         console.error("Gemini Nutrition Insights Error:", e);
         const errorMessage = e?.message || e?.toString() || 'Unknown error';
 
@@ -778,7 +778,7 @@ Ensure the macros mathematically add up to approximately the target calories (pr
             goalRecommendation: recommendation,
         };
 
-    } catch (e: any) {
+    } catch (e) {
         console.error("Gemini Goal Recommendation Error:", e);
         const errorMessage = e?.message || e?.toString() || 'Unknown error';
 
@@ -834,7 +834,7 @@ export async function createCheckoutSession(): Promise<{ url?: string; error?: s
         });
 
         return { url: session.url || undefined };
-    } catch (e: any) {
+    } catch (e) {
         console.error('Stripe checkout error:', e);
         return { error: 'Failed to create checkout session' };
     }
@@ -863,7 +863,7 @@ export async function createBillingPortalSession(): Promise<{ url?: string; erro
         });
 
         return { url: session.url };
-    } catch (e: any) {
+    } catch (e) {
         console.error('Stripe billing portal error:', e);
         return { error: 'Failed to create billing portal session' };
     }

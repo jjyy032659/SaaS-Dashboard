@@ -137,7 +137,7 @@ export function calculateStreak(data: { date: string }[]): { currentStreak: numb
 
   // Check if user logged today or yesterday to start counting
   if (sortedDates.includes(todayStr) || sortedDates.includes(yesterdayStr)) {
-    let checkDate = new Date(today);
+    const checkDate = new Date(today);
 
     for (let i = 0; i < 365; i++) { // Max check 1 year back
       const dateStr = checkDate.toISOString().split('T')[0];

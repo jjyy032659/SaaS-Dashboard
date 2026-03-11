@@ -23,9 +23,10 @@ export async function POST(req: Request) {
             signature,
             process.env.STRIPE_WEBHOOK_SECRET
         );
-    } catch (err: any) {
-        console.error('Webhook signature verification failed:', err.message);
-        return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('Webhook signature verification failed:', message);
+        return new NextResponse(`Webhook Error: ${message}`, { status: 400 });
     }
 
     const session = event.data.object as Stripe.Checkout.Session;
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
                     throw new Error('No userId in metadata');
                 }
 
-                const periodEnd = (subscription as any).current_period_end;
+                const periodEnd = subscription.current_period_end;
                 await updateUserSubscription(userId, {
                     stripeSubscriptionId: subscription.id,
                     stripePriceId: subscription.items.data[0].price.id,
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
                     .limit(1);
 
                 if (userProfile[0]) {
-                    const periodEnd = (subscription as any).current_period_end;
+                    const periodEnd = subscription.current_period_end;
                     await updateUserSubscription(userProfile[0].userId, {
                         stripeSubscriptionId: subscription.id,
                         stripePriceId: subscription.items.data[0].price.id,
@@ -128,7 +129,7 @@ export async function POST(req: Request) {
                     .limit(1);
 
                 if (userProfile[0]) {
-                    const periodEnd = (subscription as any).current_period_end;
+                    const periodEnd = subscription.current_period_end;
                     await updateUserSubscription(userProfile[0].userId, {
                         stripeSubscriptionId: subscription.id,
                         stripePriceId: subscription.items.data[0].price.id,

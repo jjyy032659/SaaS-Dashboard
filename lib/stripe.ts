@@ -18,7 +18,7 @@ export const stripe = new Proxy({} as Stripe, {
                 typescript: true,
             });
         }
-        return (_stripe as any)[prop];
+        return Reflect.get(_stripe, prop);
     }
 });
 

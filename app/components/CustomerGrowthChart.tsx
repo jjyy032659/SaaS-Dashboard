@@ -18,14 +18,11 @@ interface CustomerGrowthChartProps {
 
 export const CustomerGrowthChart: React.FC<CustomerGrowthChartProps> = ({ data }) => {
   // Map raw data into cumulative growth
-  let cumulativeCount = 0;
-  const cumulativeData = data.map(item => {
-    cumulativeCount += item.count;
-    return { 
-      ...item, 
-      cumulative: cumulativeCount 
-    };
-  });
+  const cumulativeData = data.reduce<Array<CustomerGrowthData & { cumulative: number }>>((acc, item) => {
+    const cumulative = (acc.length > 0 ? acc[acc.length - 1].cumulative : 0) + item.count;
+    acc.push({ ...item, cumulative });
+    return acc;
+  }, []);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md border h-96">

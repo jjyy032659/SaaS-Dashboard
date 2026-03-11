@@ -104,7 +104,7 @@ export default async function PricingPage() {
                             Can I cancel anytime?
                         </h3>
                         <p className="text-gray-600">
-                            Yes! You can cancel your subscription at any time. You'll continue to have access
+                            Yes! You can cancel your subscription at any time. You&apos;ll continue to have access
                             until the end of your current billing period.
                         </p>
                     </div>
@@ -114,7 +114,7 @@ export default async function PricingPage() {
                             What happens to my data if I downgrade?
                         </h3>
                         <p className="text-gray-600">
-                            All your meal logs and data are saved forever. You'll just lose access to premium
+                            All your meal logs and data are saved forever. You&apos;ll just lose access to premium
                             AI features until you upgrade again.
                         </p>
                     </div>
@@ -124,7 +124,7 @@ export default async function PricingPage() {
                             How does the AI work?
                         </h3>
                         <p className="text-gray-600">
-                            We use Google's Gemini AI to analyze your nutrition data, recognize food from photos,
+                            We use Google&apos;s Gemini AI to analyze your nutrition data, recognize food from photos,
                             and provide personalized recommendations based on proven nutrition science.
                         </p>
                     </div>
