@@ -24,7 +24,7 @@ export const MacroGauge = ({ label, total, goal, color, unit }: MacroGaugeProps)
     ];
 
     // Tooltip formatter to show consumption vs. goal
-    const customTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ value: number }> }) => {
+    const customTooltip = ({ active, payload }: { active?: boolean; payload?: ReadonlyArray<{ value: number }> }) => {
         if (active && payload && payload.length) {
             // Only show data from the first payload (the consumed portion)
             const consumed = (payload[0].value / 360) * goal;

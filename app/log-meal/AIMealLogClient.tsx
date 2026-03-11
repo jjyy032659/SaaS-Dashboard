@@ -15,6 +15,7 @@ interface AnalysisResult {
 }
 
 interface MacroTotals {
+    description: string;
     calories: number;
     proteinG: number;
     fatG: number;

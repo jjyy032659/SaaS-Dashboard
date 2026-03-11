@@ -44,7 +44,7 @@ export async function POST(req: Request) {
                     throw new Error('No userId in metadata');
                 }
 
-                const periodEnd = subscription.current_period_end;
+                const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end;
                 await updateUserSubscription(userId, {
                     stripeSubscriptionId: subscription.id,
                     stripePriceId: subscription.items.data[0].price.id,
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
                     .limit(1);
 
                 if (userProfile[0]) {
-                    const periodEnd = subscription.current_period_end;
+                    const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end;
                     await updateUserSubscription(userProfile[0].userId, {
                         stripeSubscriptionId: subscription.id,
                         stripePriceId: subscription.items.data[0].price.id,
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
                     .limit(1);
 
                 if (userProfile[0]) {
-                    const periodEnd = subscription.current_period_end;
+                    const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end;
                     await updateUserSubscription(userProfile[0].userId, {
                         stripeSubscriptionId: subscription.id,
                         stripePriceId: subscription.items.data[0].price.id,

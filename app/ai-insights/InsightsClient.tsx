@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Sparkles, RefreshCw, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { TrendAnalysisInput } from '@/lib/actions';
 
 interface InsightsClientProps {
     monthlyData: Array<{
@@ -33,7 +34,7 @@ interface InsightsClientProps {
     };
     totalDays: number;
     missingDays: number;
-    generateNutritionInsightsAction: (data: Record<string, unknown>) => Promise<{ success: boolean; insights?: string; message?: string }>;
+    generateNutritionInsightsAction: (data: TrendAnalysisInput) => Promise<{ success: boolean; insights?: string; message?: string }>;
 }
 
 export default function InsightsClient({

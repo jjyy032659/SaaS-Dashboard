@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useActionState } from 'react';
 import { X, Sparkles, Brain, CheckCircle2, AlertCircle, Target } from 'lucide-react';
+import { GoalAdvisorFormState } from '@/lib/actions';
 
 interface GoalAdvisorModalProps {
     isOpen: boolean;
@@ -14,7 +15,7 @@ interface GoalAdvisorModalProps {
         macroFatG: number;
         macroCarbsG: number;
     }) => void;
-    generateGoalRecommendationsAction: (prevState: unknown, formData: FormData) => Promise<{ success: boolean; goalRecommendation?: string; error?: string }>;
+    generateGoalRecommendationsAction: (prevState: GoalAdvisorFormState, formData: FormData) => Promise<GoalAdvisorFormState>;
 }
 
 export default function GoalAdvisorModal({

@@ -426,7 +426,7 @@ Use whole numbers only. Be realistic about portion sizes.`;
 
     } catch (e) {
         console.error("Gemini Image Analysis Error:", e);
-        const errorMessage = e?.message || e?.toString() || 'Unknown error';
+        const errorMessage = e instanceof Error ? e.message : String(e);
         console.error("Error details:", errorMessage);
 
         // Check for specific error types
@@ -494,7 +494,7 @@ export async function analyzeGoalProgressAction(
  * AI ACTION 3: COMPREHENSIVE 30-DAY NUTRITION TREND ANALYSIS
  * Analyzes user's nutrition patterns over 30 days and provides personalized insights
  */
-interface TrendAnalysisInput {
+export interface TrendAnalysisInput {
     monthlyData: Array<{
         date: string;
         calories: number;
@@ -502,7 +502,12 @@ interface TrendAnalysisInput {
         carbs: number;
         fat: number;
     }>;
-    goals: UserProfile;
+    goals: {
+        calorieGoal: number;
+        macroProteinG: number;
+        macroCarbsG: number;
+        macroFatG: number;
+    };
     weeklySummary: {
         avgCalories: number;
         avgProtein: number;
@@ -639,7 +644,7 @@ Be specific, data-driven, encouraging, and actionable. Use the actual numbers pr
 
     } catch (e) {
         console.error("Gemini Nutrition Insights Error:", e);
-        const errorMessage = e?.message || e?.toString() || 'Unknown error';
+        const errorMessage = e instanceof Error ? e.message : String(e);
 
         if (errorMessage.includes('429') || errorMessage.includes('quota')) {
             return {
@@ -659,10 +664,20 @@ Be specific, data-driven, encouraging, and actionable. Use the actual numbers pr
  * AI ACTION 4: PERSONALIZED GOAL CALCULATION
  * Uses AI to calculate optimal calorie and macro targets based on user biometrics
  */
+export interface GoalAdvisorFormState extends FormState {
+    goalRecommendation?: {
+        calorieGoal: number;
+        macroProteinG: number;
+        macroFatG: number;
+        macroCarbsG: number;
+        explanation: string;
+    };
+}
+
 export async function generateGoalRecommendationsAction(
-    prevState: FormState,
+    prevState: GoalAdvisorFormState,
     formData: FormData
-): Promise<FormState> {
+): Promise<GoalAdvisorFormState> {
     const rawData = {
         age: parseInt(formData.get('age') as string),
         gender: formData.get('gender') as string,
@@ -780,7 +795,7 @@ Ensure the macros mathematically add up to approximately the target calories (pr
 
     } catch (e) {
         console.error("Gemini Goal Recommendation Error:", e);
-        const errorMessage = e?.message || e?.toString() || 'Unknown error';
+        const errorMessage = e instanceof Error ? e.message : String(e);
 
         if (errorMessage.includes('429') || errorMessage.includes('quota')) {
             return {
