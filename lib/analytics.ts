@@ -135,9 +135,12 @@ export function calculateStreak(data: { date: string }[]): { currentStreak: numb
   const todayStr = today.toISOString().split('T')[0];
   const yesterdayStr = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  // Check if user logged today or yesterday to start counting
-  if (sortedDates.includes(todayStr) || sortedDates.includes(yesterdayStr)) {
-    const checkDate = new Date(today);
+  // Start counting from today if logged today, otherwise from yesterday
+  const startFromYesterday = !sortedDates.includes(todayStr) && sortedDates.includes(yesterdayStr);
+  if (sortedDates.includes(todayStr) || startFromYesterday) {
+    const checkDate = startFromYesterday
+      ? new Date(today.getTime() - 24 * 60 * 60 * 1000)
+      : new Date(today);
 
     for (let i = 0; i < 365; i++) { // Max check 1 year back
       const dateStr = checkDate.toISOString().split('T')[0];
