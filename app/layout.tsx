@@ -43,7 +43,8 @@ export default function RootLayout({
 
             <div className="flex-grow flex flex-col h-full overflow-y-auto"> 
               
-              <header className="flex justify-end items-center p-4 gap-4 h-16 border-b bg-white flex-none shadow-sm">
+              <header className="flex justify-end items-center p-4 gap-4 h-16 border-b bg-green-500 flex-none shadow-sm">
+                <span className="text-white font-bold text-lg mr-auto">✅ DEPLOYMENT V2 ACTIVE</span>
                 <SignedOut>
                   <SignInButton>
                     <button className="text-sm font-medium px-4 py-2 border rounded-md hover:bg-gray-50 cursor-pointer">
