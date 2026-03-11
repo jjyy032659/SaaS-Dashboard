@@ -1,0 +1,87 @@
+#===============================================================================
+# TERRAFORM VARIABLES FILE (terraform.tfvars.example)
+#===============================================================================
+# This is a TEMPLATE file. Copy it to terraform.tfvars and fill in your values.
+#
+# SETUP:
+# 1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+# 2. Edit terraform.tfvars with your actual values
+# 3. IMPORTANT: Add terraform.tfvars to .gitignore (contains secrets!)
+#
+# HOW IT WORKS:
+# Terraform automatically loads terraform.tfvars when you run commands.
+# These values override the defaults in variables.tf.
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# AWS CONFIGURATION
+#-------------------------------------------------------------------------------
+# aws_profile: The AWS CLI profile to use (from ~/.aws/credentials)
+#              Create with: aws configure --profile saas-dashboard
+#
+# aws_region:  Choose a region close to your users for better performance.
+#              See: https://aws.amazon.com/about-aws/global-infrastructure/regions_az/
+#-------------------------------------------------------------------------------
+aws_profile  = "saas-dashboard"
+aws_region   = "us-east-1"
+project_name = "my-saas-dashboard"
+environment  = "production"  # or "staging", "development"
+
+#-------------------------------------------------------------------------------
+# EC2 CONFIGURATION
+#-------------------------------------------------------------------------------
+# Instance types: https://aws.amazon.com/ec2/instance-types/
+#
+# Recommendations:
+# - t3.micro  ($8/month)  - Testing only, 1 GB RAM
+# - t3.small  ($15/month) - Small apps, 2 GB RAM
+# - t3.medium ($30/month) - Production, 4 GB RAM (RECOMMENDED)
+#-------------------------------------------------------------------------------
+instance_type = "t3.small"
+
+# IMPORTANT: Create this key pair in AWS Console BEFORE running Terraform!
+# Steps:
+# 1. Go to AWS Console > EC2 > Key Pairs
+# 2. Click "Create key pair"
+# 3. Enter name (e.g., "my-saas-dashboard-key")
+# 4. Select .pem format
+# 5. Download and save securely
+key_pair_name = "your-key-pair-name"
+
+#-------------------------------------------------------------------------------
+# SECURITY
+#-------------------------------------------------------------------------------
+# Restrict SSH access to your IP address for security.
+# Find your IP: curl ifconfig.me
+# Then use: "YOUR.IP.ADDRESS/32"
+#
+# WARNING: "0.0.0.0/0" allows SSH from anywhere - NOT recommended for production!
+#-------------------------------------------------------------------------------
+allowed_ssh_cidr = "0.0.0.0/0"  # CHANGE THIS to "your.ip.address/32"
+
+# Disk size in GB
+root_volume_size = 20
+
+#-------------------------------------------------------------------------------
+# APPLICATION SECRETS
+#-------------------------------------------------------------------------------
+# Get these values from your service dashboards.
+# DO NOT commit real values to git!
+#-------------------------------------------------------------------------------
+
+# Clerk Authentication (https://dashboard.clerk.com/)
+clerk_secret_key      = "sk_test_xxxxxxxxxxxxxxxxxxxx"
+clerk_publishable_key = "pk_test_xxxxxxxxxxxxxxxxxxxx"
+
+# Database (Neon, Vercel Postgres, or any PostgreSQL)
+# Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require
+database_url = "postgresql://user:password@host.neon.tech/mydb?sslmode=require"
+
+# Stripe Payments (https://dashboard.stripe.com/apikeys)
+stripe_secret_key      = "sk_test_xxxxxxxxxxxxxxxxxxxx"
+stripe_publishable_key = "pk_test_xxxxxxxxxxxxxxxxxxxx"
+stripe_webhook_secret  = "whsec_xxxxxxxxxxxxxxxxxxxx"  # Optional
+
+# AI Services (Optional - leave empty string if not using)
+openai_api_key       = ""  # https://platform.openai.com/api-keys
+google_genai_api_key = ""  # https://aistudio.google.com/app/apikey

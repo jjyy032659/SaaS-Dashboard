@@ -36,17 +36,18 @@ export async function POST(req: Request) {
                 // Subscription successfully created
                 const subscription = await stripe.subscriptions.retrieve(
                     session.subscription as string
-                );
+                ) as Stripe.Subscription;
 
                 const userId = session.metadata?.userId;
                 if (!userId) {
                     throw new Error('No userId in metadata');
                 }
 
+                const periodEnd = (subscription as any).current_period_end;
                 await updateUserSubscription(userId, {
                     stripeSubscriptionId: subscription.id,
                     stripePriceId: subscription.items.data[0].price.id,
-                    stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+                    stripeCurrentPeriodEnd: new Date(periodEnd * 1000),
                     subscriptionStatus: 'active',
                 });
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
                 // Payment successful - renew subscription
                 const subscription = await stripe.subscriptions.retrieve(
                     session.subscription as string
-                );
+                ) as Stripe.Subscription;
 
                 // Find user by subscription ID
                 const userProfile = await db.select()
@@ -67,10 +68,11 @@ export async function POST(req: Request) {
                     .limit(1);
 
                 if (userProfile[0]) {
+                    const periodEnd = (subscription as any).current_period_end;
                     await updateUserSubscription(userProfile[0].userId, {
                         stripeSubscriptionId: subscription.id,
                         stripePriceId: subscription.items.data[0].price.id,
-                        stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+                        stripeCurrentPeriodEnd: new Date(periodEnd * 1000),
                         subscriptionStatus: 'active',
                     });
 
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
                 // Payment failed
                 const subscription = await stripe.subscriptions.retrieve(
                     session.subscription as string
-                );
+                ) as Stripe.Subscription;
 
                 const userProfile = await db.select()
                     .from(usersProfile)
@@ -126,10 +128,11 @@ export async function POST(req: Request) {
                     .limit(1);
 
                 if (userProfile[0]) {
+                    const periodEnd = (subscription as any).current_period_end;
                     await updateUserSubscription(userProfile[0].userId, {
                         stripeSubscriptionId: subscription.id,
                         stripePriceId: subscription.items.data[0].price.id,
-                        stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+                        stripeCurrentPeriodEnd: new Date(periodEnd * 1000),
                         subscriptionStatus: subscription.status,
                     });
 

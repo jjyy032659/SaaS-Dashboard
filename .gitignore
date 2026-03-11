@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Claude Code local settings (may contain secrets in allowed commands)
+.claude/settings.local.json
+
 # dependencies
 /node_modules
 /.pnp
@@ -41,3 +44,38 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# =============================================================================
+# TERRAFORM
+# =============================================================================
+# These files contain sensitive information or are auto-generated.
+# NEVER commit these to version control!
+
+# Local .terraform directory (contains provider plugins)
+**/.terraform/*
+
+# Terraform state files (contain sensitive infrastructure details)
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Variables file with secrets (use terraform.tfvars.example as template)
+*.tfvars
+!*.tfvars.example
+
+# Override files (local customizations)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration file
+.terraformrc
+terraform.rc
+
+# Lock file (optional - some teams commit this for consistency)
+# Uncomment the next line if you want to ignore it
+# .terraform.lock.hcl

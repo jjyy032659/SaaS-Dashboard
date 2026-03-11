@@ -56,21 +56,22 @@ export const MacroGauge = ({ label, total, goal, color, unit }: MacroGaugeProps)
                         startAngle={90}
                         endAngle={-270}
                         paddingAngle={0}
-                        activeIndex={0} // Forces the active styling to be on the consumed portion
-                        activeShape={({ cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill }) => {
-                            return (
-                                <g>
-                                    <path d={`M${cx},${cy} m-${innerRadius},0 a${innerRadius},${innerRadius} 0 1,0 ${innerRadius * 2},0 a${innerRadius},${innerRadius} 0 1,0 -${innerRadius * 2},0`} fill="#E5E7EB" />
-                                    <path d={`M${cx},${cy} m-${outerRadius},0 a${outerRadius},${outerRadius} 0 1,0 ${outerRadius * 2},0 a${outerRadius},${outerRadius} 0 1,0 -${outerRadius * 2},0`} fill="#E5E7EB" />
-                                    <path fill={fill} d={`M${cx} ${cy} L${cx} ${cy - outerRadius} A${outerRadius} ${outerRadius} 0 ${fillValue > 180 ? 1 : 0} 1 ${cx + Math.sin(fillValue * Math.PI / 180) * outerRadius} ${cy - Math.cos(fillValue * Math.PI / 180) * outerRadius} Z`} />
-                                    <text x={cx} y={cy} dy={-5} textAnchor="middle" fill="#1f2937" className="text-2xl font-bold">{percent}%</text>
-                                    <text x={cx} y={cy} dy={20} textAnchor="middle" fill="#6b7280" className="text-sm">{total} / {goal}{unit}</text>
-                                </g>
-                            );
-                        }}
                     >
-                        {/* Only the consumed portion needs a cell for the color fill */}
-                        <Cell key={`cell-0`} fill={color} />
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                        <Label
+                            value={`${percent}%`}
+                            position="center"
+                            dy={-5}
+                            style={{ fontSize: '24px', fontWeight: 'bold', fill: '#1f2937' }}
+                        />
+                        <Label
+                            value={`${total} / ${goal}${unit}`}
+                            position="center"
+                            dy={20}
+                            style={{ fontSize: '12px', fill: '#6b7280' }}
+                        />
                     </Pie>
                     <Tooltip content={customTooltip} />
                 </PieChart>

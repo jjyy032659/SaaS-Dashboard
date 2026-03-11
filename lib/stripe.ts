@@ -4,14 +4,22 @@ import { db } from './db/db';
 import { usersProfile } from './db/schema';
 import { eq } from 'drizzle-orm';
 
-// Initialize Stripe
-if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
-}
+// Initialize Stripe lazily to allow build without env vars
+let _stripe: Stripe | null = null;
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: '2024-12-18.acacia',
-    typescript: true,
+export const stripe = new Proxy({} as Stripe, {
+    get(_target, prop) {
+        if (!_stripe) {
+            if (!process.env.STRIPE_SECRET_KEY) {
+                throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+            }
+            _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+                apiVersion: '2025-12-15.clover',
+                typescript: true,
+            });
+        }
+        return (_stripe as any)[prop];
+    }
 });
 
 // Subscription Plans Configuration
@@ -105,11 +113,11 @@ export async function getUserSubscriptionStatus(userId: string): Promise<{
 
     const user = userProfile[0];
     const isPremium = user.subscriptionStatus === 'active' &&
-                     user.stripeCurrentPeriodEnd &&
+                     !!user.stripeCurrentPeriodEnd &&
                      user.stripeCurrentPeriodEnd.getTime() > Date.now();
 
     return {
-        isPremium,
+        isPremium: !!isPremium,
         status: user.subscriptionStatus || 'free',
         currentPeriodEnd: user.stripeCurrentPeriodEnd || undefined,
     };

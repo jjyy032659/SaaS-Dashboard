@@ -53,11 +53,13 @@ async function getRecentFoodLog(userId: string) {
 async function getFoodLibrary(userId: string): Promise<Food[]> {
     return db.select({
         id: foods.id,
+        userId: foods.userId,
         name: foods.name,
         calories: foods.calories,
         protein_g: foods.protein_g,
         carbs_g: foods.carbs_g,
-        fat_g: foods.fat_g
+        fat_g: foods.fat_g,
+        createdAt: foods.createdAt
     })
     .from(foods)
     .where(eq(foods.userId, userId))

@@ -24,12 +24,18 @@ import {
 import { DailyMacroData as DailySummary } from './analytics'; 
 
 
-// Initialize the Gemini client. Reads GEMINI_API_KEY from .env.local
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is not set in .env.local');
-}
-const ai = new GoogleGenAI({ apiKey }); 
+// Initialize the Gemini client lazily to allow build without env vars
+let _ai: GoogleGenAI | null = null;
+function getAI(): GoogleGenAI {
+    if (!_ai) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error('GEMINI_API_KEY environment variable is not set in .env.local');
+        }
+        _ai = new GoogleGenAI({ apiKey });
+    }
+    return _ai;
+} 
 
 
 // FIX: Define the MealType union type based on the schema's pgEnum
@@ -398,7 +404,7 @@ Provide your response in valid JSON format with these exact fields:
 Use whole numbers only. Be realistic about portion sizes.`;
 
         // Use the models.generateContent API
-        const response = await ai.models.generateContent({
+        const response = await getAI().models.generateContent({
             model: 'gemini-2.0-flash',  // Using 2.0 as fallback if 2.5 is overloaded
             contents: [prompt, imagePart],
             config: {
@@ -467,7 +473,7 @@ export async function analyzeGoalProgressAction(
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAI().models.generateContent({
             model: 'gemini-2.0-flash',  // Using 2.0 as fallback if 2.5 is overloaded
             contents: prompt,
             config: {
@@ -615,7 +621,7 @@ Provide a comprehensive nutrition analysis with the following sections. Use Mark
 
 Be specific, data-driven, encouraging, and actionable. Use the actual numbers provided. If performance is strong, celebrate it. If there are concerns, address them constructively with solutions.`;
 
-        const response = await ai.models.generateContent({
+        const response = await getAI().models.generateContent({
             model: 'gemini-2.0-flash',
             contents: prompt,
             config: {
@@ -753,7 +759,7 @@ Calculate optimal macro targets (protein, carbs, fat in grams) for this user's $
 
 Ensure the macros mathematically add up to approximately the target calories (protein: 4 cal/g, carbs: 4 cal/g, fat: 9 cal/g).`;
 
-        const response = await ai.models.generateContent({
+        const response = await getAI().models.generateContent({
             model: 'gemini-2.0-flash',
             contents: prompt,
             config: {

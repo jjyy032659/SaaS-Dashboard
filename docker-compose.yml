@@ -1,0 +1,282 @@
+#===============================================================================
+# DOCKER COMPOSE FILE (docker-compose.yml)
+#===============================================================================
+# Docker Compose is a tool for defining and running multi-container applications.
+# Instead of running long docker commands, you define everything in this YAML file.
+#
+# WHAT DOCKER COMPOSE DOES:
+# - Defines multiple services (containers) in one file
+# - Sets up networking between containers automatically
+# - Manages volumes for persistent data
+# - Simplifies development workflow
+#
+# DOCKER COMPOSE VS DOCKERFILE:
+# - Dockerfile: Recipe to BUILD an image (what goes inside the container)
+# - docker-compose.yml: How to RUN containers (ports, volumes, env vars, etc.)
+#
+# COMMON COMMANDS:
+#   docker compose up           # Start all services
+#   docker compose up -d        # Start in background (detached)
+#   docker compose up --build   # Rebuild images before starting
+#   docker compose down         # Stop and remove containers
+#   docker compose logs         # View logs from all services
+#   docker compose logs -f app  # Follow logs for specific service
+#   docker compose ps           # List running containers
+#   docker compose exec app sh  # Shell into a running container
+#
+# VERSION NOTE:
+# Modern Docker Compose (v2) doesn't require a "version:" field.
+# If you're using older docker-compose (v1), add: version: '3.8'
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# SERVICES
+#-------------------------------------------------------------------------------
+# Services are the containers that make up your application.
+# Each service runs one container based on an image.
+#-------------------------------------------------------------------------------
+services:
+
+  #=============================================================================
+  # APP SERVICE (Next.js Application)
+  #=============================================================================
+  # This is your main application container.
+  #=============================================================================
+  app:
+    # SERVICE NAME
+    # ---------------------------------------------------------------------------
+    # "app" is the name of this service. Other containers can reach it using
+    # this name as the hostname (e.g., http://app:3000)
+    # ---------------------------------------------------------------------------
+
+    # BUILD CONFIGURATION
+    # ---------------------------------------------------------------------------
+    # Tells Docker Compose how to build the image for this service.
+    # ---------------------------------------------------------------------------
+    build:
+      # Context: The directory containing the Dockerfile
+      # "." means current directory
+      context: .
+
+      # Dockerfile: Path to the Dockerfile (relative to context)
+      dockerfile: Dockerfile
+
+      # Build arguments: Passed to Dockerfile during build
+      # These are needed for NEXT_PUBLIC_* env vars which are embedded at build time
+      args:
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+        - NEXT_PUBLIC_CLERK_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
+        - NEXT_PUBLIC_CLERK_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/sign-up}
+
+    # CONTAINER NAME
+    # ---------------------------------------------------------------------------
+    # Gives the container a specific name instead of auto-generated one.
+    # Without this: my-saas-dashboard-app-1
+    # With this: my-saas-app
+    # ---------------------------------------------------------------------------
+    container_name: my-saas-app
+
+    # PORT MAPPING
+    # ---------------------------------------------------------------------------
+    # Maps ports from the container to your host machine.
+    # Format: "HOST_PORT:CONTAINER_PORT"
+    #
+    # "3000:3000" means:
+    #   - Container listens on port 3000
+    #   - Host machine exposes it on port 3000
+    #   - Access via http://localhost:3000
+    #
+    # You could use "8080:3000" to access via http://localhost:8080
+    # ---------------------------------------------------------------------------
+    ports:
+      - "3000:3000"
+
+    # ENVIRONMENT VARIABLES
+    # ---------------------------------------------------------------------------
+    # Variables available inside the container at runtime.
+    # These are your app's configuration and secrets.
+    #
+    # Two ways to set env vars:
+    # 1. Inline (shown here) - good for non-secret values
+    # 2. env_file (shown below) - good for secrets
+    #
+    # ${VAR:-default} syntax:
+    #   - Uses $VAR if set
+    #   - Uses "default" if $VAR is not set
+    # ---------------------------------------------------------------------------
+    environment:
+      - NODE_ENV=production
+      # Server-side env vars are passed at runtime (not build time)
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY:-}
+
+    # ENVIRONMENT FILE
+    # ---------------------------------------------------------------------------
+    # Load environment variables from a file.
+    # Great for local development - just create a .env file.
+    #
+    # Docker Compose automatically loads .env in the same directory,
+    # but you can specify additional files here.
+    # ---------------------------------------------------------------------------
+    env_file:
+      - .env
+
+    # RESTART POLICY
+    # ---------------------------------------------------------------------------
+    # What to do if the container crashes.
+    #
+    # Options:
+    #   - "no": Never restart (default)
+    #   - "always": Always restart, including on daemon startup
+    #   - "on-failure": Restart only if exit code indicates error
+    #   - "unless-stopped": Restart unless manually stopped
+    #
+    # For production, "unless-stopped" is usually best.
+    # ---------------------------------------------------------------------------
+    restart: unless-stopped
+
+    # HEALTH CHECK
+    # ---------------------------------------------------------------------------
+    # Periodically checks if the container is healthy.
+    # Docker won't route traffic to unhealthy containers.
+    #
+    # This hits the Next.js app and checks for a successful response.
+    # ---------------------------------------------------------------------------
+    healthcheck:
+      # Command to check health
+      # curl the app and check for HTTP 200 response
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+
+      # How often to run the check
+      interval: 30s
+
+      # How long to wait for a response
+      timeout: 10s
+
+      # How many failures before marking unhealthy
+      retries: 3
+
+      # Time to wait before starting checks (let app start up)
+      start_period: 40s
+
+    # RESOURCE LIMITS (Optional)
+    # ---------------------------------------------------------------------------
+    # Limit CPU and memory usage to prevent runaway containers.
+    # Uncomment and adjust based on your needs.
+    # ---------------------------------------------------------------------------
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'      # Max 1 CPU core
+    #       memory: 512M   # Max 512 MB RAM
+    #     reservations:
+    #       cpus: '0.25'   # Minimum 0.25 CPU
+    #       memory: 256M   # Minimum 256 MB RAM
+
+    # LOGGING CONFIGURATION
+    # ---------------------------------------------------------------------------
+    # Controls how Docker handles container logs.
+    # ---------------------------------------------------------------------------
+    logging:
+      driver: "json-file"    # Default logging driver
+      options:
+        max-size: "10m"      # Max log file size
+        max-file: "3"        # Keep 3 rotated log files
+
+
+  #=============================================================================
+  # DEVELOPMENT SERVICE (Alternative for local development)
+  #=============================================================================
+  # Uncomment this for a development-friendly setup with hot reloading.
+  # Uses volume mounts to sync code changes without rebuilding.
+  #=============================================================================
+  # app-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dev  # You'd need to create this
+  #   container_name: my-saas-app-dev
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=development
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     # Mount source code for hot reloading
+  #     - .:/app
+  #     # Anonymous volume to preserve node_modules from container
+  #     - /app/node_modules
+  #     # Mount .next for faster builds
+  #     - /app/.next
+  #   command: npm run dev
+
+
+#===============================================================================
+# VOLUMES (Named Volumes)
+#===============================================================================
+# Volumes persist data beyond container lifecycle.
+# Even if you delete the container, volume data remains.
+#
+# Two types:
+# 1. Named volumes (defined here) - Docker manages location
+# 2. Bind mounts (in services) - You specify host path
+#
+# Example: If you add a local PostgreSQL database:
+# volumes:
+#   postgres_data:
+#     driver: local
+#===============================================================================
+# volumes:
+#   # Example: Persist database data
+#   postgres_data:
+
+
+#===============================================================================
+# NETWORKS
+#===============================================================================
+# Networks allow containers to communicate with each other.
+# Docker Compose creates a default network automatically.
+#
+# Custom networks are useful when:
+# - You have multiple compose files that need to communicate
+# - You want to isolate groups of services
+# - You need specific network configuration
+#===============================================================================
+# networks:
+#   app-network:
+#     driver: bridge
+
+
+#===============================================================================
+# USAGE EXAMPLES
+#===============================================================================
+#
+# DEVELOPMENT (with automatic rebuild):
+#   docker compose up --build
+#
+# PRODUCTION (detached mode):
+#   docker compose up -d --build
+#
+# VIEW LOGS:
+#   docker compose logs -f
+#
+# STOP EVERYTHING:
+#   docker compose down
+#
+# STOP AND REMOVE VOLUMES (careful - deletes data!):
+#   docker compose down -v
+#
+# REBUILD WITHOUT CACHE (when dependencies change):
+#   docker compose build --no-cache
+#   docker compose up -d
+#
+# SCALE SERVICES (run multiple instances):
+#   docker compose up -d --scale app=3
+#   (Requires removing container_name and using port ranges)
+#
+#===============================================================================

@@ -8,7 +8,7 @@ export const GoalSchema = z.object({
   heightCm: z.number().int().positive().min(50, { message: "Height is required." }),
   currentWeightKg: z.number().positive().min(10, { message: "Weight is required." }),
   activityLevel: z.enum(['sedentary', 'light', 'moderate', 'very', 'super'], {
-    errorMap: () => ({ message: "Please select an activity level." }),
+    message: "Please select an activity level.",
   }),
   // Goals
   calorieGoal: z.number().int().positive().min(1000, { message: "Goal must be at least 1000 kcal." }),
@@ -20,7 +20,7 @@ export const GoalSchema = z.object({
 // Define the shape of the data for Meal Logging (existing)
 export const MealLogSchema = z.object({
   mealType: z.enum(['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK', 'SUPPLEMENT'], {
-    errorMap: () => ({ message: "Please select a valid meal type." }),
+    message: "Please select a valid meal type.",
   }),
   description: z.string()
     .min(1, { message: "Description is required." })
@@ -78,15 +78,15 @@ export const HistoricalMealLogSchema = MealLogSchema.extend({
 export const GoalAdvisorSchema = z.object({
   age: z.number().int().positive().min(18, { message: "Must be 18 or older." }).max(100, { message: "Age must be realistic." }),
   gender: z.enum(['male', 'female'], {
-    errorMap: () => ({ message: "Please select your gender." }),
+    message: "Please select your gender.",
   }),
   heightCm: z.number().int().positive().min(100, { message: "Height must be at least 100 cm." }).max(250, { message: "Height must be realistic." }),
   currentWeightKg: z.number().positive().min(30, { message: "Weight must be at least 30 kg." }).max(300, { message: "Weight must be realistic." }),
   activityLevel: z.enum(['sedentary', 'light', 'moderate', 'very', 'super'], {
-    errorMap: () => ({ message: "Please select an activity level." }),
+    message: "Please select an activity level.",
   }),
   goal: z.enum(['lose', 'maintain', 'gain'], {
-    errorMap: () => ({ message: "Please select your goal." }),
+    message: "Please select your goal.",
   }),
 });
 

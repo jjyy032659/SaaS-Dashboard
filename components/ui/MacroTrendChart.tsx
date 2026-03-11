@@ -46,7 +46,7 @@ export const MacroTrendChart: React.FC<MacroTrendChartProps> = ({ data }) => {
         {/* Tooltip on hover */}
         <Tooltip 
             labelFormatter={(label) => `Date: ${label}`}
-            formatter={(value, name) => [`${value} ${name === 'calories' ? 'kcal' : 'g'}`, name.charAt(0).toUpperCase() + name.slice(1)]}
+            formatter={(value, name) => [`${value} ${name === 'calories' ? 'kcal' : 'g'}`, String(name).charAt(0).toUpperCase() + String(name).slice(1)]}
         />
         
         <Legend wrapperStyle={{ paddingTop: '15px' }} />

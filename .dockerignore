@@ -1,0 +1,165 @@
+#===============================================================================
+# DOCKER IGNORE FILE (.dockerignore)
+#===============================================================================
+# This file tells Docker which files/folders to EXCLUDE when building an image.
+# Works like .gitignore but for Docker builds.
+#
+# WHY IS THIS IMPORTANT?
+#
+# 1. FASTER BUILDS
+#    - Docker sends all files to the "build context" (Docker daemon)
+#    - Excluding large folders like node_modules speeds this up significantly
+#    - node_modules alone can be 500MB+ - excluding it saves time!
+#
+# 2. SMALLER IMAGES
+#    - Less files = smaller image size
+#    - Faster to push/pull from registry
+#    - Less storage costs
+#
+# 3. SECURITY
+#    - Prevents secrets (.env, keys) from being included in the image
+#    - Anyone with access to the image could extract these files!
+#
+# 4. CLEANER BUILDS
+#    - Local node_modules might have OS-specific binaries
+#    - We want fresh npm ci inside the container for Linux binaries
+#
+# PATTERN SYNTAX:
+#   *          - Matches any file
+#   **         - Matches any directory recursively
+#   ?          - Matches single character
+#   !          - Negates a pattern (include despite previous exclusion)
+#   #          - Comment
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# DEPENDENCIES
+#-------------------------------------------------------------------------------
+# Exclude local node_modules - we install fresh inside the container.
+# Local modules might have native bindings compiled for your OS (Windows/Mac),
+# but the container runs Linux - we need Linux-compatible binaries.
+#-------------------------------------------------------------------------------
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+#-------------------------------------------------------------------------------
+# BUILD OUTPUT
+#-------------------------------------------------------------------------------
+# Exclude local build artifacts - we build inside the container.
+# This ensures a clean, reproducible build every time.
+#-------------------------------------------------------------------------------
+.next
+out
+build
+dist
+
+#-------------------------------------------------------------------------------
+# ENVIRONMENT & SECRETS
+#-------------------------------------------------------------------------------
+# CRITICAL: Never include env files in Docker images!
+# Secrets should be passed at runtime via:
+#   - docker run --env-file .env
+#   - docker run -e VAR=value
+#   - Docker secrets / AWS Secrets Manager
+#-------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+#-------------------------------------------------------------------------------
+# VERSION CONTROL
+#-------------------------------------------------------------------------------
+# Git history is not needed in the container and can be quite large.
+#-------------------------------------------------------------------------------
+.git
+.gitignore
+
+#-------------------------------------------------------------------------------
+# IDE & EDITOR FILES
+#-------------------------------------------------------------------------------
+# Editor-specific files and settings don't belong in production.
+#-------------------------------------------------------------------------------
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+#-------------------------------------------------------------------------------
+# DOCUMENTATION
+#-------------------------------------------------------------------------------
+# Documentation files aren't needed to run the app.
+#-------------------------------------------------------------------------------
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+docs
+
+#-------------------------------------------------------------------------------
+# TESTING
+#-------------------------------------------------------------------------------
+# Test files and coverage reports aren't needed in production.
+#-------------------------------------------------------------------------------
+coverage
+.nyc_output
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+__tests__
+__mocks__
+jest.config.*
+cypress
+playwright
+
+#-------------------------------------------------------------------------------
+# INFRASTRUCTURE / DEVOPS
+#-------------------------------------------------------------------------------
+# These are for setting up infrastructure, not running the app.
+#-------------------------------------------------------------------------------
+terraform
+*.tf
+*.tfvars
+*.tfstate*
+docker-compose*.yml
+Dockerfile*
+!Dockerfile
+.dockerignore
+
+#-------------------------------------------------------------------------------
+# OS GENERATED FILES
+#-------------------------------------------------------------------------------
+# Operating system files that shouldn't be in the container.
+#-------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+
+#-------------------------------------------------------------------------------
+# MISC
+#-------------------------------------------------------------------------------
+# Other files that aren't needed in production.
+#-------------------------------------------------------------------------------
+*.log
+*.pid
+*.seed
+*.pid.lock
+.cache
+.npm
+.eslintcache
+.vercel
+.turbo
+tsconfig.tsbuildinfo
+
+#-------------------------------------------------------------------------------
+# EXAMPLE: INCLUDING SPECIFIC FILES
+#-------------------------------------------------------------------------------
+# Use ! to include files that would otherwise be excluded.
+# For example, if you have a .env.example you want to include:
+#
+# .env*          # Exclude all .env files
+# !.env.example  # But include .env.example
+#-------------------------------------------------------------------------------
