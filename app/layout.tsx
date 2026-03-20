@@ -1,24 +1,13 @@
-// app/layout.tsx (Updated)
-
-import { ClerkProvider, SignedIn } from '@clerk/nextjs';
-import HeaderAuth from './ui/HeaderAuth';
-
-import Sidebar from './ui/Sidebar';
+import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
-// NEW IMPORTS:
-import GoalChecker from './ui/GoalChecker'; // <-- NEW
-import { getGoalStatus } from '@/lib/actions'; // <-- NEW (The Server Action)
-import SubscriptionBadge from './ui/SubscriptionBadge'; // <-- Subscription badge
-
-// Define metadata (kept simple for this example)
 export const metadata = {
-  title: 'Professional SaaS Dashboard',
-  description: 'Mid-level Next.js project demonstrating data fetching and authentication.',
+  title: 'NutriTrack AI — Smart Nutrition Tracking',
+  description: 'AI-powered nutrition tracking, meal logging with photo analysis, and personalized coaching.',
 };
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({
   children,
@@ -28,33 +17,8 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={inter.className}> 
-          <div className="flex h-screen flex-row md:overflow-hidden">
-            
-            <div className="w-64 flex-none">
-              <Sidebar /> 
-            </div>
-
-            <div className="flex-grow flex flex-col h-full overflow-y-auto"> 
-              
-              <header className="flex justify-end items-center p-4 gap-4 h-16 border-b bg-white flex-none shadow-sm">
-                <SignedIn>
-                  <SubscriptionBadge />
-                </SignedIn>
-                <HeaderAuth />
-              </header>
-              
-              {/* WRAP THE MAIN CONTENT WITH GoalChecker */}
-              <GoalChecker getGoalStatus={getGoalStatus}> 
-                <main className="flex-1 p-6 md:p-12 bg-gray-50"> 
-                  {children}
-                </main>
-              </GoalChecker>
-
-            </div>
-            
-          </div>
-          
+        <body className={inter.className}>
+          {children}
         </body>
       </html>
     </ClerkProvider>

@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { AlertCircle } from 'lucide-react';
-import { MacroTrendChart } from '../components/MacroTrendChart';
+import { MacroTrendChart } from '@/app/components/MacroTrendChart';
 import BackfillMealModal from './BackfillMealModal';
 
 interface DailyMacroTrend {

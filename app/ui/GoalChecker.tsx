@@ -10,7 +10,7 @@ interface GoalCheckerProps {
 }
 
 // Define paths that a user MUST be able to access even without a profile
-const ALLOWED_PATHS = ['/', '/settings']; // Allow settings and the root (Dashboard) to render the redirect itself
+const ALLOWED_PATHS = ['/dashboard', '/settings']; // Allow settings and the root (Dashboard) to render the redirect itself
 
 export default function GoalChecker({ getGoalStatus, children }: React.PropsWithChildren<GoalCheckerProps>) {
     const router = useRouter();

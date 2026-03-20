@@ -13,7 +13,7 @@ const routes = [
   {
     label: "Dashboard",
     icon: LayoutDashboard,
-    href: "/",
+    href: "/dashboard",
     color: "text-sky-500",
   },
   {
@@ -47,7 +47,7 @@ export default function Sidebar() {
   return (
     <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white w-64">
       <div className="px-3 py-2 flex-1">
-        <Link href="/" className="flex items-center pl-3 mb-14">
+        <Link href="/dashboard" className="flex items-center pl-3 mb-14">
           <h1 className="text-2xl font-bold">Nutrition Tracker</h1> {/* Updated App Name */}
         </Link>
         
