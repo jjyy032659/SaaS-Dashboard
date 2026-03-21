@@ -1,6 +1,6 @@
 // app/pricing/page.tsx
 import { auth } from '@clerk/nextjs/server';
-import { Check, Sparkles, Zap, Crown } from 'lucide-react';
+import { Check, Sparkles, Zap, Crown, FlaskConical } from 'lucide-react';
 import { PLANS } from '@/lib/stripe';
 import PricingClient from './PricingClient';
 import { createCheckoutSession } from '@/lib/actions';
@@ -18,6 +18,19 @@ export default async function PricingPage() {
                 <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                     Start free and upgrade anytime to unlock AI-powered nutrition insights
                 </p>
+            </div>
+
+            {/* Test Mode Banner */}
+            <div className="max-w-5xl mx-auto mb-10">
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4">
+                    <FlaskConical size={20} className="text-amber-600 flex-none mt-0.5" />
+                    <div>
+                        <p className="text-sm font-bold text-amber-800">Payments are currently in test mode</p>
+                        <p className="text-sm text-amber-700 mt-0.5">
+                            This feature is under development. No real charges will be made. Live payments will be enabled soon — check back for updates.
+                        </p>
+                    </div>
+                </div>
             </div>
 
             {/* Pricing Cards */}
