@@ -1,9 +1,7 @@
-// lib/analytics.ts
 import { db } from "@/lib/db/db";
-import { foodLog } from "@/lib/db/schema"; // Use foodLog instead of customers
+import { foodLog } from "@/lib/db/schema";
 import { sql, eq, and, gte, lt } from 'drizzle-orm';
 
-// Define the type for the aggregated data the component expects
 export interface DailyMacroData {
   total_calories: number;
   total_protein: number;
@@ -11,11 +9,8 @@ export interface DailyMacroData {
   total_fat: number;
 }
 
-/**
- * Fetches and aggregates the user's total macro and calorie consumption for the current day.
- */
+// Fetches today's macro totals for the dashboard KPI cards
 export async function fetchDailyMacroSummary(userId: string): Promise<DailyMacroData> {
-  // Define today's boundaries for the SQL query
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -37,7 +32,6 @@ export async function fetchDailyMacroSummary(userId: string): Promise<DailyMacro
       )
     );
 
-    // Ensure the results are numeric and return the first row (the summary)
     const summary = result[0] || {};
 
     return {
@@ -52,10 +46,7 @@ export async function fetchDailyMacroSummary(userId: string): Promise<DailyMacro
   }
 }
 
-/**
- * Detects missing days in the provided data array within the last N days.
- * Returns an array of date strings (YYYY-MM-DD) for days that have no data.
- */
+// Returns dates (YYYY-MM-DD) within the last N days that have no log entries
 export function detectMissingDays(
   data: { date: string }[],
   daysBack: number = 30
@@ -69,19 +60,17 @@ export function detectMissingDays(
   for (let i = 1; i <= daysBack; i++) {
     const checkDate = new Date(today);
     checkDate.setDate(today.getDate() - i);
-    const dateStr = checkDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateStr = checkDate.toISOString().split('T')[0];
 
     if (!existingDates.has(dateStr)) {
       missingDays.push(dateStr);
     }
   }
 
-  return missingDays.sort(); // Chronological order
+  return missingDays.sort();
 }
 
-/**
- * Calculates weekly summary (last 7 days) from daily macro data.
- */
+// Averages macros over the last 7 days
 export function calculateWeeklySummary(data: { date: string; calories: number; protein: number; carbs: number; fat: number }[]) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -90,14 +79,7 @@ export function calculateWeeklySummary(data: { date: string; calories: number; p
   const weekData = data.filter(d => d.date >= sevenDaysAgoStr);
 
   if (weekData.length === 0) {
-    return {
-      avgCalories: 0,
-      avgProtein: 0,
-      avgCarbs: 0,
-      avgFat: 0,
-      totalCalories: 0,
-      daysLogged: 0,
-    };
+    return { avgCalories: 0, avgProtein: 0, avgCarbs: 0, avgFat: 0, totalCalories: 0, daysLogged: 0 };
   }
 
   const totals = weekData.reduce((acc, day) => ({
@@ -117,13 +99,13 @@ export function calculateWeeklySummary(data: { date: string; calories: number; p
   };
 }
 
-/**
- * Calculates the current tracking streak (consecutive days with data).
- */
+// Calculates current and longest streak.
+// Counts from yesterday if the user hasn't logged yet today — otherwise a
+// streak built up over weeks would reset to 0 every morning until first log.
 export function calculateStreak(data: { date: string }[]): { currentStreak: number; longestStreak: number } {
   if (data.length === 0) return { currentStreak: 0, longestStreak: 0 };
 
-  const sortedDates = data.map(d => d.date).sort().reverse(); // Most recent first
+  const sortedDates = data.map(d => d.date).sort().reverse();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -131,18 +113,16 @@ export function calculateStreak(data: { date: string }[]): { currentStreak: numb
   let longestStreak = 0;
   let tempStreak = 0;
 
-  // Calculate current streak (from today backwards)
   const todayStr = today.toISOString().split('T')[0];
   const yesterdayStr = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  // Start counting from today if logged today, otherwise from yesterday
   const startFromYesterday = !sortedDates.includes(todayStr) && sortedDates.includes(yesterdayStr);
   if (sortedDates.includes(todayStr) || startFromYesterday) {
     const checkDate = startFromYesterday
       ? new Date(today.getTime() - 24 * 60 * 60 * 1000)
       : new Date(today);
 
-    for (let i = 0; i < 365; i++) { // Max check 1 year back
+    for (let i = 0; i < 365; i++) {
       const dateStr = checkDate.toISOString().split('T')[0];
       if (sortedDates.includes(dateStr)) {
         currentStreak++;
@@ -153,7 +133,7 @@ export function calculateStreak(data: { date: string }[]): { currentStreak: numb
     }
   }
 
-  // Calculate longest streak
+  // calculate longest streak from full history
   for (let i = 0; i < sortedDates.length; i++) {
     const currentDate = new Date(sortedDates[i]);
     const nextDate = sortedDates[i + 1] ? new Date(sortedDates[i + 1]) : null;
@@ -173,9 +153,7 @@ export function calculateStreak(data: { date: string }[]): { currentStreak: numb
   return { currentStreak, longestStreak };
 }
 
-/**
- * Calculates average macro percentages from the last 7 days of data.
- */
+// Macro ratio breakdown using caloric weight (protein/carbs = 4 kcal/g, fat = 9 kcal/g)
 export function calculateMacroRatios(data: { date: string; protein: number; carbs: number; fat: number }[]) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -183,21 +161,17 @@ export function calculateMacroRatios(data: { date: string; protein: number; carb
 
   const weekData = data.filter(d => d.date >= sevenDaysAgoStr);
 
-  if (weekData.length === 0) {
-    return { protein: 0, carbs: 0, fat: 0 };
-  }
+  if (weekData.length === 0) return { protein: 0, carbs: 0, fat: 0 };
 
   const totals = weekData.reduce((acc, day) => ({
-    protein: acc.protein + (day.protein * 4), // 4 cal/g
-    carbs: acc.carbs + (day.carbs * 4), // 4 cal/g
-    fat: acc.fat + (day.fat * 9), // 9 cal/g
+    protein: acc.protein + (day.protein * 4),
+    carbs: acc.carbs + (day.carbs * 4),
+    fat: acc.fat + (day.fat * 9),
   }), { protein: 0, carbs: 0, fat: 0 });
 
   const totalCals = totals.protein + totals.carbs + totals.fat;
 
-  if (totalCals === 0) {
-    return { protein: 0, carbs: 0, fat: 0 };
-  }
+  if (totalCals === 0) return { protein: 0, carbs: 0, fat: 0 };
 
   return {
     protein: Math.round((totals.protein / totalCals) * 100),
@@ -206,6 +180,5 @@ export function calculateMacroRatios(data: { date: string; protein: number; carb
   };
 }
 
-// NOTE: We keep a placeholder for the old function to avoid breaking other files if they still exist.
 export interface CustomerGrowthData { month: string; count: number; }
 export async function fetchCustomerGrowth(userId: string): Promise<CustomerGrowthData[]> { return []; }

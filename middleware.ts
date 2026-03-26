@@ -1,7 +1,7 @@
-// middleware.ts
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
+// everything is protected by default — only these routes are open
 const isPublicRoute = createRouteMatcher([
   '/',
   '/sign-in(.*)',
@@ -14,7 +14,7 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
-  // Redirect authenticated users away from the landing page to the dashboard
+  // send logged-in users straight to the dashboard if they hit the landing page
   const { userId } = await auth();
   if (userId && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', req.url));

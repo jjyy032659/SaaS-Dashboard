@@ -1,4 +1,3 @@
-// app/page.tsx (COMPLETE CODE)
 import { db } from '@/lib/db/db';
 import { foodLog, foods, usersProfile, UserProfile } from '@/lib/db/schema';
 import { auth } from '@clerk/nextjs/server';

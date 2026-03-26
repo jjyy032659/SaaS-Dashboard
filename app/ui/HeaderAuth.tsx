@@ -10,7 +10,8 @@ export default function HeaderAuth() {
   const prevSignedIn = useRef(isSignedIn);
 
   useEffect(() => {
-    // When transitioning from signed-out to signed-in, refresh server components
+    // router.refresh() forces server components to re-render with the new auth state.
+    // Without this, the dashboard content stays blank after sign-in until a hard reload.
     if (isSignedIn && !prevSignedIn.current) {
       router.refresh();
     }

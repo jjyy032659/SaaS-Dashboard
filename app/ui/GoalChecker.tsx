@@ -1,16 +1,15 @@
-// app/ui/GoalChecker.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 interface GoalCheckerProps {
-    // This function must be defined on the server (in lib/actions.tsx)
-    getGoalStatus: () => Promise<{ hasProfile: boolean }>; 
+    getGoalStatus: () => Promise<{ hasProfile: boolean }>;
 }
 
-// Define paths that a user MUST be able to access even without a profile
-const ALLOWED_PATHS = ['/dashboard', '/settings']; // Allow settings and the root (Dashboard) to render the redirect itself
+// skip the profile check on these pages — dashboard handles its own empty state,
+// and settings is where the user goes to fix the missing profile
+const ALLOWED_PATHS = ['/dashboard', '/settings'];
 
 export default function GoalChecker({ getGoalStatus, children }: React.PropsWithChildren<GoalCheckerProps>) {
     const router = useRouter();

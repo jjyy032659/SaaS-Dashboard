@@ -24,6 +24,7 @@ export default function AppLayout({
           <HeaderAuth />
         </header>
 
+        {/* GoalChecker redirects users who haven't set up their profile yet to /settings */}
         <GoalChecker getGoalStatus={getGoalStatus}>
           <main className="flex-1 p-6 md:p-12 bg-gray-50">
             {children}
