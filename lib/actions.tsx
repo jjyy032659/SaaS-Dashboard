@@ -405,7 +405,7 @@ Use whole numbers only. Be realistic about portion sizes.`;
 
         // Use the models.generateContent API
         const response = await getAI().models.generateContent({
-            model: 'gemini-2.0-flash',  // Using 2.0 as fallback if 2.5 is overloaded
+            model: 'gemini-2.5-flash',
             contents: [prompt, imagePart],
             config: {
                 responseMimeType: 'application/json',
@@ -474,7 +474,7 @@ export async function analyzeGoalProgressAction(
 
     try {
         const response = await getAI().models.generateContent({
-            model: 'gemini-2.0-flash',  // Using 2.0 as fallback if 2.5 is overloaded
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 temperature: 0.2,
@@ -627,7 +627,7 @@ Provide a comprehensive nutrition analysis with the following sections. Use Mark
 Be specific, data-driven, encouraging, and actionable. Use the actual numbers provided. If performance is strong, celebrate it. If there are concerns, address them constructively with solutions.`;
 
         const response = await getAI().models.generateContent({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 temperature: 0.3,
@@ -775,7 +775,7 @@ Calculate optimal macro targets (protein, carbs, fat in grams) for this user's $
 Ensure the macros mathematically add up to approximately the target calories (protein: 4 cal/g, carbs: 4 cal/g, fat: 9 cal/g).`;
 
         const response = await getAI().models.generateContent({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: 'application/json',
